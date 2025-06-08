@@ -35,10 +35,7 @@ $texts = array_merge($default_texts, $texts);
 // ข้อมูลผู้ใช้ปัจจุบัน
 $current_user = wp_get_current_user();
 
-// Debug: แสดงจำนวนบริการ
-if (empty($services)) {
-    echo '<div class="notice notice-warning"><p>🚨 ไม่พบบริการในระบบ กรุณาเพิ่มบริการในหน้า Admin หรือ Activate plugin ใหม่</p></div>';
-}
+
 ?>
 
 <div class="psu-booking-container">
@@ -196,98 +193,4 @@ if (empty($services)) {
     </div>
 </div>
 
-<script>
-// ตรวจสอบว่า jQuery และ psu_ajax พร้อมใช้งาน
-jQuery(document).ready(function($) {
-    console.log('🚀 PSU Booking Form Loading...');
-    console.log('AJAX URL:', psu_ajax ? psu_ajax.ajax_url : 'NOT AVAILABLE');
-    console.log('Services count:', $('.psu-service-card').length);
-    
-    // ตรวจสอบว่ามีบริการหรือไม่
-    if ($('.psu-service-card').length === 0) {
-        console.warn('⚠️ No services found!');
-        return;
-    }
-    
-    // ทดสอบ frontend.js
-    if (typeof psuGoToStep === 'function') {
-        console.log('✅ Frontend JS loaded successfully');
-    } else {
-        console.error('❌ Frontend JS not loaded properly');
-    }
-    
-    // Event สำหรับเลือกบริการ (backup)
-    $('.psu-service-card').off('click').on('click', function() {
-        $('.psu-service-card').removeClass('selected');
-        $(this).addClass('selected');
-        
-        const serviceId = $(this).data('service-id');
-        console.log('🎯 Service selected:', serviceId);
-        
-        // ถ้า frontend.js ไม่ทำงาน ให้ทำแบบ manual
-        if (typeof selectService === 'function') {
-            selectService(serviceId);
-        } else {
-            console.log('Using manual service selection...');
-            manualSelectService(serviceId);
-        }
-    });
-    
-    function manualSelectService(serviceId) {
-        if (!psu_ajax) {
-            alert('ระบบไม่พร้อมใช้งาน กรุณาลองใหม่อีกครั้ง');
-            return;
-        }
-        
-        $.ajax({
-            url: psu_ajax.ajax_url,
-            type: 'POST',
-            data: {
-                action: 'psu_get_service',
-                service_id: serviceId,
-                nonce: psu_ajax.nonce
-            },
-            success: function(response) {
-                console.log('✅ Service data received:', response);
-                if (response.success) {
-                    updateServiceInfo(response.data);
-                    showStep(2);
-                } else {
-                    alert('ไม่สามารถโหลดข้อมูลบริการได้');
-                }
-            },
-            error: function(xhr, status, error) {
-                console.error('❌ AJAX Error:', error);
-                alert('เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + error);
-            }
-        });
-    }
-    
-    function updateServiceInfo(service) {
-        const priceText = service.price > 0 ? 
-            Number(service.price).toLocaleString() + ' บาท/ชั่วโมง' : 'ฟรี';
-        
-        const html = `
-            <div class="psu-service-summary" style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                <h4 style="color: #2B3F6A; margin-bottom: 10px;">${service.name}</h4>
-                <p style="margin-bottom: 10px;">${service.description}</p>
-                <p><strong>ราคา:</strong> ${priceText}</p>
-                <p><strong>ระยะเวลา:</strong> ${service.duration} นาที</p>
-                ${service.payment_info ? `<p><strong>การชำระเงิน:</strong> ${service.payment_info}</p>` : ''}
-            </div>
-        `;
-        $('#selected-service-info').html(html);
-    }
-    
-    function showStep(stepNumber) {
-        $('.psu-step').addClass('psu-step-hidden');
-        $('#step-' + stepNumber).removeClass('psu-step-hidden');
-        $('html, body').animate({
-            scrollTop: $('.psu-booking-container').offset().top
-        }, 500);
-    }
-    
-    // Global function สำหรับใช้ใน template
-    window.psuGoToStep = window.psuGoToStep || showStep;
-});
-</script> 
+ 

@@ -6,7 +6,7 @@
 jQuery(document).ready(function($) {
     'use strict';
 
-    console.log('📝 Simplified Admin.js loaded - forms will work normally');
+
 
     /**
      * ฟังก์ชันทั่วไป

@@ -201,7 +201,7 @@ class PSU_Simple_Booking {
     public function admin_menu() {
         add_menu_page(
             'PSU Booking',
-            'PSU Booking',
+            'ภาพรวม',
             'manage_options',
             'psu-booking',
             array($this, 'admin_dashboard'),
@@ -248,30 +248,10 @@ class PSU_Simple_Booking {
         add_submenu_page(
             'psu-booking',
             'ฟิลด์ฟอร์ม',
-            'ฟิลด์ฟอร์ม',
+            'ปรับแต่งฟอร์ม',
             'manage_options',
             'psu-booking-form-fields',
             array($this, 'admin_form_fields')
-        );
-        
-        // Migration & Check tool
-        add_submenu_page(
-            'psu-booking',
-            'Migration Check',
-            'Migration Check',
-            'manage_options',
-            'psu-booking-migration',
-            array($this, 'admin_migration_check')
-        );
-        
-        // Debug menu (เฉพาะสำหรับแก้ไขปัญหา)
-        add_submenu_page(
-            'psu-booking',
-            'Debug',
-            'Debug',
-            'manage_options',
-            'psu-booking-debug',
-            array($this, 'admin_debug')
         );
     }
     
@@ -375,18 +355,6 @@ class PSU_Simple_Booking {
     public function admin_form_fields() { 
         if (file_exists(PSU_BOOKING_PLUGIN_PATH . 'admin/form-fields.php')) {
             include PSU_BOOKING_PLUGIN_PATH . 'admin/form-fields.php';
-        }
-    }
-    
-    public function admin_migration_check() { 
-        if (file_exists(PSU_BOOKING_PLUGIN_PATH . 'admin/migration-check.php')) {
-            include PSU_BOOKING_PLUGIN_PATH . 'admin/migration-check.php';
-        }
-    }
-    
-    public function admin_debug() { 
-        if (file_exists(PSU_BOOKING_PLUGIN_PATH . 'admin/debug-service.php')) {
-            include PSU_BOOKING_PLUGIN_PATH . 'admin/debug-service.php';
         }
     }
     

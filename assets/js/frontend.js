@@ -314,7 +314,7 @@
                 category: categoryTitle
             });
             
-            console.log(`✅ Selected timeslot in category: ${categoryTitle}`, { start, end, display });
+
         }
         
         updateSelectedTimeslots();

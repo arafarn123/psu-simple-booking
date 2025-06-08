@@ -4,37 +4,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Debug information - แสดงข้อมูลทุกครั้งที่โหลดหน้า
-echo '<div style="background: #e7f3ff; padding: 15px; margin: 10px 0; border: 1px solid #bee5eb; border-radius: 4px;">';
-echo '<h4>🔍 Debug Services Page:</h4>';
-echo '<p><strong>Request Method:</strong> ' . $_SERVER['REQUEST_METHOD'] . '</p>';
-echo '<p><strong>Current Time:</strong> ' . date('Y-m-d H:i:s') . '</p>';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    echo '<div style="background: #fff3cd; padding: 10px; margin: 10px 0; border: 1px solid #ffeaa7; border-radius: 4px;">';
-    echo '<h5>📨 POST Request detected!</h5>';
-    echo '<p>Has save_service: ' . (isset($_POST['save_service']) ? '✅ Yes' : '❌ No') . '</p>';
-    echo '<p>POST count: ' . count($_POST) . ' items</p>';
-    
-    if (!empty($_POST)) {
-        echo '<details><summary>All POST data:</summary>';
-        echo '<pre>' . htmlspecialchars(print_r($_POST, true)) . '</pre>';
-        echo '</details>';
-    }
-    
-    if (isset($_POST['save_service'])) {
-        echo '<p>Has nonce: ' . (isset($_POST['psu_service_nonce']) ? '✅ Yes' : '❌ No') . '</p>';
-        if (isset($_POST['psu_service_nonce'])) {
-            $nonce_valid = wp_verify_nonce($_POST['psu_service_nonce'], 'psu_save_service');
-            echo '<p>Nonce valid: ' . ($nonce_valid ? '✅ Yes' : '❌ No') . '</p>';
-        }
-    }
-    echo '</div>';
-} else {
-    echo '<p>👀 Waiting for form submission...</p>';
-}
-echo '</div>';
-
 // จัดการการบันทึกข้อมูล
 if (isset($_POST['save_service']) && wp_verify_nonce($_POST['psu_service_nonce'], 'psu_save_service')) {
     global $wpdb;
