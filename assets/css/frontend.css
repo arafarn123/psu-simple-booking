@@ -187,6 +187,7 @@
 
 .psu-btn-secondary:hover {
     background: var(--psu-light-blue);
+    color: var(--psu-primary);
 }
 
 .psu-btn-disabled {
@@ -216,6 +217,7 @@
     font-size: 16px;
     font-weight: 600;
     margin: 0;
+    color: var(--psu-white);
 }
 
 .psu-calendar-header button {
@@ -310,6 +312,12 @@
     cursor: not-allowed;
 }
 
+.psu-calendar-day-unavailable {
+    background: #F3F4F6 !important;
+    color: #9CA3AF !important;
+    cursor: not-allowed;
+}
+
 .psu-calendar-day-indicator {
     position: absolute;
     bottom: 2px;
@@ -329,6 +337,10 @@
 
 .psu-calendar-day-indicator.full {
     background: var(--psu-error);
+}
+
+.psu-calendar-day-indicator.unavailable {
+    background: #9CA3AF;
 }
 
 /* Timeslots */
@@ -708,6 +720,7 @@
 .psu-legend-color.available { background: var(--psu-success); }
 .psu-legend-color.partial { background: var(--psu-warning); }
 .psu-legend-color.full { background: var(--psu-error); }
+.psu-legend-color.unavailable { background: #9CA3AF; }
 
 /* Responsive Design */
 @media (max-width: 768px) {

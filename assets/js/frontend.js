@@ -13,6 +13,7 @@
     let currentStep = 1;
     let currentMonth = new Date().getMonth();
     let currentYear = new Date().getFullYear();
+    let selectedTimeslotCategory = null;
 
     // เริ่มต้นเมื่อ document พร้อม
     $(document).ready(function() {
@@ -112,6 +113,18 @@
         
         $(document).on('click', '.psu-calendar-day-available', function() {
             const date = $(this).data('date');
+            
+            // ตรวจสอบว่าวันนี้เต็มหรือไม่
+            if ($(this).hasClass('psu-calendar-day-full')) {
+                showNotification('🚫 วันที่เลือกเต็มแล้ว กรุณาเลือกวันอื่น', 'error');
+                return;
+            }
+            
+            // ตรวจสอบว่าวันนี้ไม่ทำการหรือไม่
+            if ($(this).hasClass('psu-calendar-day-unavailable')) {
+                showNotification('⏹️ วันที่เลือกไม่ทำการ กรุณาเลือกวันอื่น', 'error');
+                return;
+            }
             
             // เพิ่มเอฟเฟค ripple
             createRippleEffect(this);
@@ -337,6 +350,9 @@
                         hideLoadingOverlay();
                         psuGoToStep(2);
                         showNotification('✅ เลือกบริการสำเร็จ!', 'success');
+                        
+                        // โหลดสถานะปฏิทินหลังจากเลือกบริการ
+                        renderCalendar();
                     }, 800);
                 } else {
                     hideLoadingOverlay();
@@ -458,6 +474,13 @@
             currentMonth = 0;
             currentYear++;
         }
+        
+        // เคลียร์การเลือกวันเมื่อเปลี่ยนเดือน
+        selectedDate = null;
+        selectedTimeslots = [];
+        selectedTimeslotCategory = null;
+        $('#next-to-step-3').addClass('psu-btn-disabled').prop('disabled', true);
+        
         renderCalendar();
     }
 
@@ -486,7 +509,8 @@
             const currentDate = new Date(currentYear, currentMonth, day);
             currentDate.setHours(0, 0, 0, 0);
             
-            const dateString = currentDate.toISOString().split('T')[0];
+            // ใช้ local timezone แทน UTC เพื่อป้องกันปัญหาการเลื่อนวันที่
+            const dateString = formatDateString(currentYear, currentMonth + 1, day);
             let dayClass = 'psu-calendar-day';
             
             if (currentDate < today) {
@@ -499,10 +523,40 @@
                 dayClass += ' psu-calendar-day-selected';
             }
             
-            calendarHtml += `<div class="${dayClass}" data-date="${dateString}">${day}</div>`;
+            calendarHtml += `
+                <div class="${dayClass}" data-date="${dateString}">
+                    <span class="psu-day-number">${day}</span>
+                    <div class="psu-calendar-day-indicator">⏳</div>
+                </div>
+            `;
         }
         
         $('#psu-calendar').html(calendarHtml);
+        
+        // เพิ่ม calendar legend หากยังไม่มี
+        if (!$('.psu-calendar-legend').length) {
+            $('.psu-calendar-container').append(`
+                <div class="psu-calendar-legend">
+                    <div class="psu-legend-item">
+                        <span>🟢 ว่าง</span>
+                    </div>
+                    <div class="psu-legend-item">
+                        <span>🟡 จองบางส่วน</span>
+                    </div>
+                    <div class="psu-legend-item">
+                        <span>🔴 เต็ม</span>
+                    </div>
+                    <div class="psu-legend-item">
+                        <span>⚫ ไม่ทำการ</span>
+                    </div>
+                </div>
+            `);
+        }
+        
+        // โหลดสถานะการจองหลังจากสร้างปฏิทิน
+        if (selectedService) {
+            loadCalendarStatus();
+        }
         
         // เพิ่ม animation สำหรับวันที่
         setTimeout(() => {
@@ -528,8 +582,158 @@
         }, 100);
     }
 
+    function loadCalendarStatus() {
+        if (!selectedService) return;
+        
+        // แสดง loading indicator
+        $('.psu-calendar-day-available .psu-calendar-day-indicator').text('⏳');
+        
+        // ดึงสถานะทั้งเดือนครั้งเดียว
+        getMonthBookingStatus(currentYear, currentMonth).then(statuses => {
+            console.log('📊 สถานะที่ได้จาก Backend:', statuses);
+            
+            $('.psu-calendar-day-available').each(function() {
+                const $dayElement = $(this);
+                const dateString = $dayElement.data('date');
+                
+                if (dateString) {
+                    const status = statuses[dateString] || 'available';
+                    console.log(`📅 วันที่ ${dateString}: สถานะ = ${status}`);
+                    updateDateStatus($dayElement, status);
+                } else {
+                    // ถ้าไม่มีข้อมูล แสดงเป็น available (สำหรับวันที่ผ่านมาแล้ว)
+                    updateDateStatus($dayElement, 'available');
+                }
+            });
+            
+            // แจ้งให้ผู้ใช้ทราบว่าโหลดเสร็จแล้ว
+            const statusCount = Object.keys(statuses).length;
+            console.log('📅 โหลดสถานะปฏิทินเสร็จแล้ว - รวม', statusCount, 'วัน');
+            
+            // แสดง notification สำหรับผู้ใช้
+            if (statusCount > 0) {
+                // showNotification(`📊 โหลดข้อมูล ${statusCount} วันเสร็จแล้ว (1 request แทน ${statusCount} requests!)`, 'info');
+            }
+        }).catch(error => {
+            console.error('Error loading calendar status:', error);
+            // ถ้าเกิดข้อผิดพลาด ให้แสดงทุกวันเป็น available
+            $('.psu-calendar-day-available').each(function() {
+                updateDateStatus($(this), 'available');
+            });
+        });
+    }
+
+    async function getMonthBookingStatus(year, month) {
+        if (!selectedService) return {};
+        
+        const startTime = performance.now();
+        
+        try {
+            console.log(`📊 ดึงสถานะเดือน: ${year}-${month+1} (JS month: ${month}, Year: ${year})`);
+            
+            const response = await $.ajax({
+                url: psu_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'psu_get_month_booking_status',
+                    service_id: selectedService.id,
+                    year: year,
+                    month: month, // 0-11 (JavaScript month)
+                    nonce: psu_ajax.nonce
+                }
+            });
+            
+            if (response.success) {
+                const endTime = performance.now();
+                console.log(`🚀 ดึงสถานะทั้งเดือนใน ${(endTime - startTime).toFixed(2)}ms (แทนที่ 31 requests!)`);
+                return response.data || {};
+            }
+        } catch (error) {
+            console.error('Error getting month booking status:', error);
+        }
+        
+        return {};
+    }
+    
+    // เก็บฟังก์ชันเก่าไว้สำหรับใช้แยกเฉพาะวัน (ถ้าจำเป็น)
+    async function getDateBookingStatus(date) {
+        if (!selectedService) return 'available';
+        
+        try {
+            const response = await $.ajax({
+                url: psu_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'psu_get_date_booking_status',
+                    service_id: selectedService.id,
+                    date: date,
+                    nonce: psu_ajax.nonce
+                }
+            });
+            
+            if (response.success) {
+                return response.data.status || 'available';
+            }
+        } catch (error) {
+            console.error('Error getting booking status:', error);
+        }
+        
+        return 'available';
+    }
+
+    function updateDateStatus($dayElement, status) {
+        const $indicator = $dayElement.find('.psu-calendar-day-indicator');
+        
+        // ลบ class เก่า
+        $dayElement.removeClass('psu-calendar-day-partial psu-calendar-day-full psu-calendar-day-unavailable');
+        $indicator.removeClass('available partial full unavailable');
+        
+        // เพิ่ม class ใหม่ตามสถานะ
+        switch (status) {
+            case 'partial':
+                $dayElement.addClass('psu-calendar-day-partial');
+                $indicator.addClass('partial');
+                break;
+            case 'full':
+                $dayElement.addClass('psu-calendar-day-full');
+                $dayElement.removeClass('psu-calendar-day-available'); // ไม่ให้คลิกได้
+                $indicator.addClass('full');
+                break;
+            case 'unavailable':
+                $dayElement.addClass('psu-calendar-day-unavailable');
+                $dayElement.removeClass('psu-calendar-day-available'); // ไม่ให้คลิกได้
+                $indicator.addClass('unavailable');
+                break;
+            default: // available
+                $indicator.addClass('available');
+                break;
+        }
+        
+        // เพิ่ม tooltip สำหรับแสดงสถานะ
+        let tooltipText = '';
+        switch (status) {
+            case 'available':
+                tooltipText = '✅ ว่าง - มีช่วงเวลาให้เลือก';
+                break;
+            case 'partial':
+                tooltipText = '⚠️ จองบางส่วน - มีช่วงเวลาบางส่วนว่าง';
+                break;
+            case 'full':
+                tooltipText = '🚫 เต็ม - ไม่มีช่วงเวลาว่าง';
+                break;
+            case 'unavailable':
+                tooltipText = '⏹️ ไม่ทำการ - วันหยุดหรือปิดบริการ';
+                break;
+        }
+        
+        $dayElement.attr('title', tooltipText);
+    }
+
     function selectDate(date) {
+        // รีเซ็ตตัวแปรเมื่อเปลี่ยนวัน
         selectedDate = date;
+        selectedTimeslots = [];
+        selectedTimeslotCategory = null;
         
         // อัพเดต UI
         $('.psu-calendar-day').removeClass('psu-calendar-day-selected');
@@ -568,7 +772,7 @@
                 if (response.success) {
                     setTimeout(() => {
                         renderTimeslots(response.data);
-                    }, 800); // เพิ่ม delay เพื่อให้ดู premium
+                    }, 500);
                 } else {
                     $('#timeslots-container').html(`
                         <div class="psu-no-services">
@@ -634,14 +838,6 @@
                     from { opacity: 0; transform: translateY(30px); }
                     to { opacity: 1; transform: translateY(0); }
                 }
-                .psu-service-selected {
-                    border-color: var(--psu-primary) !important;
-                    box-shadow: var(--psu-shadow-medium) !important;
-                    transform: translateY(-5px) !important;
-                }
-                .psu-service-selected::before {
-                    transform: scaleX(1) !important;
-                }
                 </style>
             `);
         }
@@ -650,6 +846,7 @@
     function toggleTimeslot(element) {
         const $element = $(element);
         const isSelected = $element.hasClass('psu-timeslot-selected');
+        const currentCategory = $element.data('category');
         
         if (isSelected) {
             // ยกเลิกการเลือก
@@ -657,7 +854,24 @@
             selectedTimeslots = selectedTimeslots.filter(slot => 
                 !(slot.start === $element.data('start') && slot.end === $element.data('end'))
             );
+            
+            // ถ้าไม่มี timeslot เหลือ ให้รีเซ็ต category
+            if (selectedTimeslots.length === 0) {
+                selectedTimeslotCategory = null;
+            }
         } else {
+            // ตรวจสอบว่าเป็นหมวดหมู่เดียวกันหรือไม่
+            if (selectedTimeslotCategory && selectedTimeslotCategory !== currentCategory) {
+                showNotification('🔄 เปลี่ยนหมวดหมู่การจอง - รีเซ็ตการเลือกก่อนหน้า', 'info');
+                
+                // รีเซ็ตการเลือกทั้งหมวดหมู่
+                $('.psu-timeslot-selected').removeClass('psu-timeslot-selected');
+                selectedTimeslots = [];
+            }
+            
+            // ตั้งหมวดหมู่ใหม่
+            selectedTimeslotCategory = currentCategory;
+            
             // เลือก timeslot
             $element.addClass('psu-timeslot-selected');
             selectedTimeslots.push({
@@ -665,7 +879,7 @@
                 end: $element.data('end'),
                 price: parseFloat($element.data('price')),
                 display: $element.data('display'),
-                category: $element.data('category')
+                category: currentCategory
             });
         }
         
@@ -716,14 +930,17 @@
         
         $('#selected-timeslots').show();
         $('#next-to-step-4').removeClass('psu-btn-disabled').prop('disabled', false);
-        
-        // เพิ่ม animation
-        $('#selected-timeslots').css('animation', 'slideInUp 0.4s ease');
     }
 
     function updateBookingSummary() {
-        // Update service name และ date ใน step 3
+        // Update service name และ date ใน step 4
         $('#current-service-name').text(selectedService ? selectedService.name : '-');
+        $('#booking-summary-service').text(selectedService ? selectedService.name : '-');
+        $('#booking-summary-date').text(selectedDate ? formatThaiDate(selectedDate) : '-');
+        $('#booking-summary-timeslots').text(selectedTimeslots.map(s => s.display).join(', '));
+        
+        const totalPrice = selectedTimeslots.reduce((sum, slot) => sum + slot.price, 0);
+        $('#booking-summary-total').text(Number(totalPrice).toLocaleString() + ' บาท');
     }
 
     function submitBooking() {
@@ -843,6 +1060,14 @@
         });
     }
 
+    function formatDateString(year, month, day) {
+        // สร้าง date string แบบ YYYY-MM-DD โดยใช้ local timezone
+        const yyyy = year.toString();
+        const mm = month.toString().padStart(2, '0');
+        const dd = day.toString().padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+    
     function formatThaiDate(date) {
         const months = [
             'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',

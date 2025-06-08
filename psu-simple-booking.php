@@ -57,6 +57,8 @@ class PSU_Simple_Booking {
         add_action('wp_ajax_nopriv_psu_submit_booking', array($this, 'ajax_submit_booking'));
         add_action('wp_ajax_psu_get_date_booking_status', array($this, 'ajax_get_date_booking_status'));
         add_action('wp_ajax_nopriv_psu_get_date_booking_status', array($this, 'ajax_get_date_booking_status'));
+        add_action('wp_ajax_psu_get_month_booking_status', array($this, 'ajax_get_month_booking_status'));
+        add_action('wp_ajax_nopriv_psu_get_month_booking_status', array($this, 'ajax_get_month_booking_status'));
         
         // Email hooks
         add_action('psu_booking_created', array($this, 'send_booking_notification'), 10, 2);
@@ -535,10 +537,11 @@ class PSU_Simple_Booking {
             return array();
         }
         
-        // ตรวจสอบวันทำการ
-        $day_of_week = date('w', strtotime($date));
+        // ตรวจสอบวันทำการ (0=อาทิตย์, 1=จันทร์, ..., 6=เสาร์)
+        $day_of_week = date('w', strtotime($date)); // w = 0(อาทิตย์) ถึง 6(เสาร์)
         $working_days = explode(',', $service->working_days);
-        if (!in_array($day_of_week, $working_days)) {
+        $working_days = array_map('intval', $working_days); // แปลงเป็น integer
+        if (!in_array((int)$day_of_week, $working_days)) {
             return array();
         }
         
@@ -758,6 +761,21 @@ class PSU_Simple_Booking {
     }
     
     /**
+     * AJAX: ดึงสถานะการจองของทั้งเดือน
+     */
+    public function ajax_get_month_booking_status() {
+        check_ajax_referer('psu_booking_nonce', 'nonce');
+        
+        $service_id = intval($_POST['service_id']);
+        $year = intval($_POST['year']);
+        $month = intval($_POST['month']); // 0-11 (JavaScript month)
+        
+        $statuses = $this->get_month_booking_status($service_id, $year, $month);
+        
+        wp_send_json_success($statuses);
+    }
+    
+    /**
      * ดึงสถานะการจองของวันที่เฉพาะ
      */
     public function get_date_booking_status($service_id, $date) {
@@ -773,10 +791,11 @@ class PSU_Simple_Booking {
             return 'unavailable';
         }
         
-        // ตรวจสอบวันทำการ
-        $day_of_week = date('w', strtotime($date));
+        // ตรวจสอบวันทำการ (0=อาทิตย์, 1=จันทร์, ..., 6=เสาร์)
+        $day_of_week = date('w', strtotime($date)); // w = 0(อาทิตย์) ถึง 6(เสาร์)
         $working_days = explode(',', $service->working_days);
-        if (!in_array($day_of_week, $working_days)) {
+        $working_days = array_map('intval', $working_days); // แปลงเป็น integer
+        if (!in_array((int)$day_of_week, $working_days)) {
             return 'unavailable';
         }
         
@@ -811,6 +830,56 @@ class PSU_Simple_Booking {
         } else {
             return 'partial';
         }
+    }
+    
+    /**
+     * ดึงสถานะการจองของทั้งเดือน
+     */
+    public function get_month_booking_status($service_id, $year, $month) {
+        global $wpdb;
+        
+        // ดึงข้อมูลบริการ
+        $service = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}psu_services WHERE id = %d AND status = 1",
+            $service_id
+        ));
+        
+        if (!$service) {
+            return array();
+        }
+        
+        $working_days = explode(',', $service->working_days);
+        $working_days = array_map('intval', $working_days); // แปลงเป็น integer
+        
+        // แปลง JavaScript month (0-11) เป็น PHP month (1-12)
+        $php_month = $month + 1;
+        
+        // หาจำนวนวันในเดือน
+        $days_in_month = date('t', mktime(0, 0, 0, $php_month, 1, $year));
+        
+        $statuses = array();
+        
+        for ($day = 1; $day <= $days_in_month; $day++) {
+            $date = sprintf('%04d-%02d-%02d', $year, $php_month, $day);
+            
+            // ตรวจสอบว่าเป็นวันที่ผ่านมาแล้วหรือไม่
+            if (strtotime($date) < strtotime('today')) {
+                continue; // ข้ามวันที่ผ่านมาแล้ว
+            }
+            
+            // ตรวจสอบวันทำการ (0=อาทิตย์, 1=จันทร์, ..., 6=เสาร์)
+            $day_of_week = date('w', strtotime($date));
+            
+            if (!in_array((int)$day_of_week, $working_days)) {
+                $statuses[$date] = 'unavailable';
+                continue;
+            }
+            
+            // ดึงสถานะการจองของวันนี้
+            $statuses[$date] = $this->get_date_booking_status($service_id, $date);
+        }
+        
+        return $statuses;
     }
     
     /**
