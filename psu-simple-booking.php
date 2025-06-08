@@ -59,6 +59,12 @@ class PSU_Simple_Booking {
         add_action('wp_ajax_nopriv_psu_get_date_booking_status', array($this, 'ajax_get_date_booking_status'));
         add_action('wp_ajax_psu_get_month_booking_status', array($this, 'ajax_get_month_booking_status'));
         add_action('wp_ajax_nopriv_psu_get_month_booking_status', array($this, 'ajax_get_month_booking_status'));
+        add_action('wp_ajax_psu_get_user_bookings', array($this, 'ajax_get_user_bookings'));
+        add_action('wp_ajax_nopriv_psu_get_user_bookings', array($this, 'ajax_get_user_bookings'));
+        add_action('wp_ajax_psu_get_booking_detail', array($this, 'ajax_get_booking_detail'));
+        add_action('wp_ajax_nopriv_psu_get_booking_detail', array($this, 'ajax_get_booking_detail'));
+        add_action('wp_ajax_psu_get_calendar_bookings', array($this, 'ajax_get_calendar_bookings'));
+        add_action('wp_ajax_nopriv_psu_get_calendar_bookings', array($this, 'ajax_get_calendar_bookings'));
         
         // Email hooks
         add_action('psu_booking_created', array($this, 'send_booking_notification'), 10, 2);
@@ -1089,6 +1095,165 @@ class PSU_Simple_Booking {
         
         error_log('PSU Booking: Manual parsing failed');
         return false;
+    }
+    
+    /**
+     * AJAX: ดึงรายการจองของผู้ใช้
+     */
+    public function ajax_get_user_bookings() {
+        check_ajax_referer('psu_booking_nonce', 'nonce');
+        
+        $user_id = get_current_user_id();
+        $user_email = wp_get_current_user()->user_email;
+        $page = intval($_POST['page'] ?? 1);
+        $per_page = 10;
+        $filters = $_POST['filters'] ?? array();
+        
+        global $wpdb;
+        
+        // Base query
+        $where_conditions = array();
+        $where_params = array();
+        
+        // User condition
+        $where_conditions[] = "(user_id = %d OR customer_email = %s)";
+        $where_params[] = $user_id;
+        $where_params[] = $user_email;
+        
+        // Filter conditions
+        if (!empty($filters['status'])) {
+            $where_conditions[] = "b.status = %s";
+            $where_params[] = $filters['status'];
+        }
+        
+        if (!empty($filters['month'])) {
+            $where_conditions[] = "MONTH(booking_date) = %d";
+            $where_params[] = intval($filters['month']);
+        }
+        
+        if (!empty($filters['search'])) {
+            $search = '%' . $wpdb->esc_like($filters['search']) . '%';
+            $where_conditions[] = "(
+                s.name LIKE %s OR 
+                b.customer_name LIKE %s OR 
+                b.id LIKE %s OR
+                DATE_FORMAT(b.booking_date, '%%Y-%%m-%%d') LIKE %s
+            )";
+            $where_params[] = $search;
+            $where_params[] = $search;
+            $where_params[] = $search;
+            $where_params[] = $search;
+        }
+        
+        $where_clause = implode(' AND ', $where_conditions);
+        
+        // Count total
+        $count_query = "
+            SELECT COUNT(*) 
+            FROM {$wpdb->prefix}psu_bookings b
+            LEFT JOIN {$wpdb->prefix}psu_services s ON b.service_id = s.id
+            WHERE {$where_clause}
+        ";
+        
+        $total = $wpdb->get_var($wpdb->prepare($count_query, $where_params));
+        
+        // Get bookings
+        $offset = ($page - 1) * $per_page;
+        $bookings_query = "
+            SELECT b.*, s.name as service_name
+            FROM {$wpdb->prefix}psu_bookings b
+            LEFT JOIN {$wpdb->prefix}psu_services s ON b.service_id = s.id
+            WHERE {$where_clause}
+            ORDER BY b.created_at DESC
+            LIMIT %d OFFSET %d
+        ";
+        
+        $query_params = array_merge($where_params, array($per_page, $offset));
+        $bookings = $wpdb->get_results($wpdb->prepare($bookings_query, $query_params));
+        
+        $pagination = array(
+            'current_page' => $page,
+            'per_page' => $per_page,
+            'total_items' => $total,
+            'total_pages' => ceil($total / $per_page)
+        );
+        
+        wp_send_json_success(array(
+            'bookings' => $bookings,
+            'pagination' => $pagination
+        ));
+    }
+    
+    /**
+     * AJAX: ดึงรายละเอียดการจอง
+     */
+    public function ajax_get_booking_detail() {
+        check_ajax_referer('psu_booking_nonce', 'nonce');
+        
+        $booking_id = intval($_POST['booking_id']);
+        $user_id = get_current_user_id();
+        $user_email = wp_get_current_user()->user_email;
+        
+        global $wpdb;
+        
+        $booking = $wpdb->get_row($wpdb->prepare("
+            SELECT b.*, s.name as service_name
+            FROM {$wpdb->prefix}psu_bookings b
+            LEFT JOIN {$wpdb->prefix}psu_services s ON b.service_id = s.id
+            WHERE b.id = %d AND (b.user_id = %d OR b.customer_email = %s)
+        ", $booking_id, $user_id, $user_email));
+        
+        if (!$booking) {
+            wp_send_json_error(array('message' => 'ไม่พบการจองที่เลือก'));
+            return;
+        }
+        
+        wp_send_json_success($booking);
+    }
+    
+    /**
+     * AJAX: ดึงการจองสำหรับปฏิทิน
+     */
+    public function ajax_get_calendar_bookings() {
+        check_ajax_referer('psu_booking_nonce', 'nonce');
+        
+        $user_id = get_current_user_id();
+        $user_email = wp_get_current_user()->user_email;
+        $year = intval($_POST['year']);
+        $month = intval($_POST['month']); // JavaScript month (0-11)
+        
+        // Convert JS month to PHP month
+        $php_month = $month + 1;
+        
+        global $wpdb;
+        
+        $bookings = $wpdb->get_results($wpdb->prepare("
+            SELECT 
+                b.id,
+                b.booking_date,
+                b.start_time,
+                b.end_time,
+                b.status,
+                s.name as service_name
+            FROM {$wpdb->prefix}psu_bookings b
+            LEFT JOIN {$wpdb->prefix}psu_services s ON b.service_id = s.id
+            WHERE (b.user_id = %d OR b.customer_email = %s)
+            AND YEAR(b.booking_date) = %d
+            AND MONTH(b.booking_date) = %d
+            ORDER BY b.booking_date, b.start_time
+        ", $user_id, $user_email, $year, $php_month));
+        
+        // Group by date
+        $calendar_data = array();
+        foreach ($bookings as $booking) {
+            $date = $booking->booking_date;
+            if (!isset($calendar_data[$date])) {
+                $calendar_data[$date] = array();
+            }
+            $calendar_data[$date][] = $booking;
+        }
+        
+        wp_send_json_success($calendar_data);
     }
 }
 
