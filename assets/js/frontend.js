@@ -60,9 +60,11 @@
             }
         });
         
-        // เลือก timeslot
-        $(document).on('click', '.psu-timeslot', function() {
-            toggleTimeslot(this);
+        // เลือก timeslot (เฉพาะที่ว่าง)
+        $(document).on('click', '.psu-timeslot-available', function() {
+            if ($(this).data('clickable') === true) {
+                toggleTimeslot(this);
+            }
         });
         
         // ส่งการจอง
@@ -177,6 +179,9 @@
         selectedDate = date;
         selectedTimeslots = [];
         
+        // ล้างการเลือก timeslot เก่า
+        $('.psu-timeslot-selected').removeClass('psu-timeslot-selected');
+        
         $('.psu-calendar-day-selected').removeClass('psu-calendar-day-selected');
         $(`[data-date="${date}"]`).addClass('psu-calendar-day-selected');
         
@@ -191,7 +196,10 @@
     }
 
     function loadTimeslots() {
-        $('#timeslots-container').html('<div class="psu-loading">กำลังโหลดช่วงเวลาที่ว่าง...</div>');
+        // แสดงชื่อบริการ
+        $('#current-service-name').text(selectedService.name);
+        
+        $('#timeslots-container').html('<div class="psu-loading">กำลังโหลดช่วงเวลา...</div>');
         
         $.ajax({
             url: psu_ajax.ajax_url,
@@ -215,23 +223,46 @@
         });
     }
 
-    function renderTimeslots(timeslots) {
-        if (timeslots.length === 0) {
-            $('#timeslots-container').html('<p>ไม่มีช่วงเวลาว่างในวันนี้</p>');
+    function renderTimeslots(categories) {
+        if (categories.length === 0) {
+            $('#timeslots-container').html('<p>ไม่มีช่วงเวลาในวันนี้</p>');
             return;
         }
         
-        let html = '<div class="psu-timeslots-grid">';
-        timeslots.forEach(function(slot) {
-            const priceText = Number(slot.price).toLocaleString();
-            html += `
-                <div class="psu-timeslot" data-start="${slot.start}" data-end="${slot.end}" data-price="${slot.price}">
-                    <div class="psu-timeslot-time">${slot.display}</div>
-                    <div class="psu-timeslot-price">${priceText} บาท</div>
-                </div>
-            `;
+        let html = '';
+        
+        categories.forEach(function(category) {
+            if (category.slots && category.slots.length > 0) {
+                html += `<div class="psu-timeslot-category">`;
+                html += `<h4 class="psu-category-title" style="color: #2B3F6A; margin: 20px 0 15px 0; padding-bottom: 5px; border-bottom: 1px solid #e0e0e0;">${category.category}</h4>`;
+                html += `<div class="psu-timeslots-grid">`;
+                
+                category.slots.forEach(function(slot) {
+                    let classes = 'psu-timeslot';
+                    let clickable = '';
+                    
+                    if (slot.available) {
+                        classes += ' psu-timeslot-available';
+                        clickable = 'data-clickable="true"';
+                    } else {
+                        classes += ' psu-timeslot-booked';
+                        clickable = 'data-clickable="false"';
+                    }
+                    
+                    const priceDisplay = slot.price_display || (slot.price == 0 ? 'ไม่มีค่าบริการ' : Number(slot.price).toLocaleString() + ' บาท');
+                    
+                    html += `
+                        <div class="${classes}" data-start="${slot.start}" data-end="${slot.end}" data-price="${slot.price}" ${clickable}>
+                            <div class="psu-timeslot-time">${slot.display}</div>
+                            <div class="psu-timeslot-price">${priceDisplay}</div>
+                            ${!slot.available ? '<div class="psu-timeslot-status">ถูกจองแล้ว</div>' : ''}
+                        </div>
+                    `;
+                });
+                
+                html += `</div></div>`;
+            }
         });
-        html += '</div>';
         
         $('#timeslots-container').html(html);
     }
@@ -243,19 +274,47 @@
         const price = parseFloat($slot.data('price'));
         const display = $slot.find('.psu-timeslot-time').text();
         
+        // หาหมวดหมู่ของ slot ที่เลือก
+        const $category = $slot.closest('.psu-timeslot-category');
+        const categoryTitle = $category.find('.psu-category-title').text().trim();
+        
         if ($slot.hasClass('psu-timeslot-selected')) {
+            // ยกเลิกการเลือก
             $slot.removeClass('psu-timeslot-selected');
             selectedTimeslots = selectedTimeslots.filter(slot => 
                 !(slot.start === start && slot.end === end)
             );
         } else {
+            // ตรวจสอบว่ามี slot ที่เลือกไว้แล้วหรือไม่
+            if (selectedTimeslots.length > 0) {
+                // ตรวจสอบว่าอยู่หมวดเดียวกันหรือไม่
+                const firstSlotCategory = selectedTimeslots[0].category;
+                
+                if (firstSlotCategory !== categoryTitle) {
+                    // แสดงข้อความยืนยัน
+                    const confirmMessage = `คุณกำลังเปลี่ยนจากหมวด "${firstSlotCategory}" เป็น "${categoryTitle}"\n\nการเลือกเวลาก่อนหน้านี้จะถูกยกเลิก คุณต้องการดำเนินการต่อหรือไม่?`;
+                    
+                    if (!confirm(confirmMessage)) {
+                        return; // ยกเลิกการเลือก
+                    }
+                    
+                    // หมวดต่างกัน - ล้างการเลือกเก่าและเลือกใหม่
+                    $('.psu-timeslot-selected').removeClass('psu-timeslot-selected');
+                    selectedTimeslots = [];
+                }
+            }
+            
+            // เลือก slot ใหม่
             $slot.addClass('psu-timeslot-selected');
             selectedTimeslots.push({
                 start: start,
                 end: end,
                 price: price,
-                display: display
+                display: display,
+                category: categoryTitle
             });
+            
+            console.log(`✅ Selected timeslot in category: ${categoryTitle}`, { start, end, display });
         }
         
         updateSelectedTimeslots();
@@ -270,27 +329,44 @@
         
         let html = '';
         let totalPrice = 0;
+        const currentCategory = selectedTimeslots[0].category;
+        
+        // แสดงหมวดหมู่ปัจจุบัน
+        html += `<div class="psu-selected-category" style="background: #e3f2fd; padding: 8px 12px; margin-bottom: 10px; border-radius: 4px; font-weight: 600; color: #1565c0;"><strong>หมวด:</strong> ${currentCategory}</div>`;
         
         selectedTimeslots.forEach(function(slot) {
-            html += `<li>${slot.display} - ${Number(slot.price).toLocaleString()} บาท</li>`;
+            const priceText = slot.price == 0 ? 'ไม่มีค่าบริการ' : Number(slot.price).toLocaleString() + ' บาท';
+            html += `<li>${slot.display} - ${priceText}</li>`;
             totalPrice += slot.price;
         });
         
         $('#selected-timeslots-list').html(html);
-        $('#total-price').text(Number(totalPrice).toLocaleString());
+        
+        // แสดงผลราคารวม
+        if (totalPrice == 0) {
+            $('#total-price').text('ไม่มีค่าบริการ');
+            $('#price-unit').text('');
+        } else {
+            $('#total-price').text(Number(totalPrice).toLocaleString());
+            $('#price-unit').text('บาท');
+        }
+        
         $('#selected-timeslots').show();
         $('#next-to-step-4').removeClass('psu-btn-disabled').prop('disabled', false);
     }
 
     function updateBookingSummary() {
         const totalPrice = selectedTimeslots.reduce((sum, slot) => sum + slot.price, 0);
+        const currentCategory = selectedTimeslots.length > 0 ? selectedTimeslots[0].category : '';
         
         let timeslotsHtml = '';
         selectedTimeslots.forEach(function(slot) {
-            timeslotsHtml += `<li>${slot.display}</li>`;
+            const priceText = slot.price == 0 ? 'ไม่มีค่าบริการ' : Number(slot.price).toLocaleString() + ' บาท';
+            timeslotsHtml += `<li>${slot.display} - ${priceText}</li>`;
         });
         
         const dateText = formatThaiDate(new Date(selectedDate));
+        const totalPriceText = totalPrice == 0 ? 'ไม่มีค่าบริการ' : Number(totalPrice).toLocaleString() + ' บาท';
         
         const html = `
             <div class="psu-summary-item">
@@ -300,11 +376,14 @@
                 <strong>วันที่:</strong> ${dateText}
             </div>
             <div class="psu-summary-item">
+                <strong>ประเภทการจอง:</strong> ${currentCategory}
+            </div>
+            <div class="psu-summary-item">
                 <strong>เวลา:</strong>
                 <ul>${timeslotsHtml}</ul>
             </div>
             <div class="psu-summary-item">
-                <strong>ราคารวม:</strong> ${Number(totalPrice).toLocaleString()} บาท
+                <strong>ราคารวม:</strong> ${totalPriceText}
             </div>
             ${selectedService.payment_info ? 
                 `<div class="psu-summary-item">
@@ -361,10 +440,12 @@
     }
 
     function showSuccessMessage(data) {
+        const totalPriceText = data.total_price == 0 ? 'ไม่มีค่าบริการ' : Number(data.total_price).toLocaleString() + ' บาท';
+        
         const html = `
             <p>การจองของคุณได้รับการยืนยันแล้ว</p>
             <p><strong>รหัสการจอง:</strong> ${data.booking_ids.join(', ')}</p>
-            <p><strong>ราคารวม:</strong> ${Number(data.total_price).toLocaleString()} บาท</p>
+            <p><strong>ราคารวม:</strong> ${totalPriceText}</p>
             <p>ท่านจะได้รับอีเมลยืนยันการจองในอีกสักครู่</p>
         `;
         $('#success-details').html(html);

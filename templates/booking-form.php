@@ -119,16 +119,20 @@ if (empty($services)) {
         <div class="psu-step psu-step-hidden" id="step-3">
             <h3 class="psu-step-title"><?php echo esc_html($texts['select_time']); ?></h3>
             
+            <div id="service-name-display" style="background: #f0f8ff; padding: 15px; margin-bottom: 20px; border-radius: 8px; border-left: 4px solid #2B3F6A;">
+                <strong>บริการ: </strong><span id="current-service-name">-</span>
+            </div>
+            
             <div class="psu-selected-date-info" id="selected-date-info"></div>
             
             <div class="psu-timeslots-container" id="timeslots-container">
-                <div class="psu-loading">กำลังโหลดช่วงเวลาที่ว่าง...</div>
+                <div class="psu-loading">กำลังโหลดช่วงเวลา...</div>
             </div>
             
-            <div class="psu-selected-timeslots" id="selected-timeslots">
+            <div class="psu-selected-timeslots" id="selected-timeslots" style="display: none;">
                 <h4>เวลาที่เลือก:</h4>
                 <ul id="selected-timeslots-list"></ul>
-                <div class="psu-total-price">รวม: <span id="total-price">0</span> บาท</div>
+                <div class="psu-total-price">รวม: <span id="total-price">0</span> <span id="price-unit">บาท</span></div>
             </div>
             
             <div class="psu-step-actions">

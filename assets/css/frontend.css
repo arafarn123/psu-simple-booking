@@ -300,6 +300,10 @@
 }
 
 /* Timeslots */
+.psu-timeslot-category {
+    margin-bottom: 30px;
+}
+
 .psu-timeslots-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -313,11 +317,16 @@
     border-radius: var(--psu-radius);
     padding: 15px;
     text-align: center;
-    cursor: pointer;
     transition: all 0.2s ease;
+    position: relative;
 }
 
-.psu-timeslot:hover {
+/* Timeslot ที่ว่าง */
+.psu-timeslot-available {
+    cursor: pointer;
+}
+
+.psu-timeslot-available:hover {
     border-color: var(--psu-primary);
     transform: translateY(-1px);
     box-shadow: var(--psu-shadow);
@@ -329,6 +338,31 @@
     border-color: var(--psu-primary) !important;
 }
 
+/* Timeslot ที่ถูกจองแล้ว */
+.psu-timeslot-booked {
+    background: #f8f9fa;
+    border-color: #e9ecef;
+    color: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.psu-timeslot-booked .psu-timeslot-time,
+.psu-timeslot-booked .psu-timeslot-price {
+    color: #6c757d;
+}
+
+.psu-timeslot-status {
+    font-size: 11px;
+    color: #dc3545;
+    font-weight: 600;
+    margin-top: 8px;
+    padding: 2px 6px;
+    background: rgba(220, 53, 69, 0.1);
+    border-radius: 4px;
+    display: inline-block;
+}
+
 .psu-timeslot-time {
     font-weight: 600;
     font-size: 16px;
@@ -338,6 +372,12 @@
 .psu-timeslot-price {
     font-size: 14px;
     opacity: 0.8;
+    color: var(--psu-primary);
+}
+
+.psu-timeslot-selected .psu-timeslot-price {
+    color: var(--psu-white);
+    opacity: 1;
 }
 
 /* Selected Timeslots */
@@ -353,6 +393,16 @@
     margin: 0 0 15px 0;
     color: var(--psu-primary);
     font-size: 16px;
+}
+
+.psu-selected-category {
+    background: #e3f2fd !important;
+    padding: 8px 12px !important;
+    margin-bottom: 10px !important;
+    border-radius: 4px !important;
+    font-weight: 600 !important;
+    color: #1565c0 !important;
+    border-left: 3px solid #2196f3 !important;
 }
 
 .psu-selected-timeslots ul {

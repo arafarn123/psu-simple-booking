@@ -549,7 +549,7 @@ class PSU_Simple_Booking {
     }
     
     /**
-     * ดึง timeslots ที่ว่าง
+     * ดึง timeslots ทั้งหมด (ทั้งว่างและไม่ว่าง)
      */
     public function get_available_timeslots($service_id, $date) {
         global $wpdb;
@@ -572,33 +572,54 @@ class PSU_Simple_Booking {
         }
         
         // สร้าง timeslots ตามประเภท (รองรับหลายประเภท)
-        $timeslots = array();
+        $all_timeslots = array();
         $types = explode(',', $service->timeslot_type);
         
         foreach ($types as $type) {
             $type = trim($type);
+            $category_name = '';
+            $slots = array();
+            
             switch ($type) {
                 case 'hourly':
-                    $timeslots = array_merge($timeslots, $this->generate_hourly_timeslots($service, $date));
+                    $category_name = 'รายชั่วโมง';
+                    $slots = $this->generate_hourly_timeslots($service, $date);
                     break;
                 case 'morning_afternoon':
-                    $timeslots = array_merge($timeslots, $this->generate_morning_afternoon_timeslots($service, $date));
+                    $category_name = 'ครึ่งวัน';
+                    $slots = $this->generate_morning_afternoon_timeslots($service, $date);
                     break;
                 case 'full_day':
-                    $timeslots = array_merge($timeslots, $this->generate_full_day_timeslots($service, $date));
+                    $category_name = 'เต็มวัน';
+                    $slots = $this->generate_full_day_timeslots($service, $date);
                     break;
             }
-        }
-        
-        // กรองเฉพาะที่ว่าง
-        $available_timeslots = array();
-        foreach ($timeslots as $slot) {
-            if ($this->is_timeslot_available($service_id, $date, $slot['start'], $slot['end'])) {
-                $available_timeslots[] = $slot;
+            
+            // เพิ่มข้อมูลสถานะและหมวดหมู่
+            foreach ($slots as &$slot) {
+                $slot['category'] = $category_name;
+                $slot['type'] = $type;
+                $slot['available'] = $this->is_timeslot_available($service_id, $date, $slot['start'], $slot['end']);
+                $slot['service_name'] = $service->name;
+                
+                // แสดงราคาถูกต้อง
+                if ($slot['price'] == 0) {
+                    $slot['price_display'] = 'ไม่มีค่าบริการ';
+                } else {
+                    $slot['price_display'] = number_format($slot['price'], 0) . ' บาท';
+                }
+            }
+            
+            if (!empty($slots)) {
+                $all_timeslots[] = array(
+                    'category' => $category_name,
+                    'type' => $type,
+                    'slots' => $slots
+                );
             }
         }
         
-        return $available_timeslots;
+        return $all_timeslots;
     }
     
     /**
