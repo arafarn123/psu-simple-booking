@@ -65,6 +65,7 @@ class PSU_Simple_Booking {
         add_action('wp_ajax_nopriv_psu_get_booking_detail', array($this, 'ajax_get_booking_detail'));
         add_action('wp_ajax_psu_get_calendar_bookings', array($this, 'ajax_get_calendar_bookings'));
         add_action('wp_ajax_nopriv_psu_get_calendar_bookings', array($this, 'ajax_get_calendar_bookings'));
+        add_action('wp_ajax_psu_get_admin_calendar_bookings', array($this, 'ajax_get_admin_calendar_bookings'));
         
         // Email hooks
         add_action('psu_booking_created', array($this, 'send_booking_notification'), 10, 2);
@@ -1292,6 +1293,99 @@ class PSU_Simple_Booking {
             AND MONTH(b.booking_date) = %d
             ORDER BY b.booking_date, b.start_time
         ", $user_id, $user_email, $year, $php_month));
+        
+        // Group by date
+        $calendar_data = array();
+        foreach ($bookings as $booking) {
+            $date = $booking->booking_date;
+            if (!isset($calendar_data[$date])) {
+                $calendar_data[$date] = array();
+            }
+            $calendar_data[$date][] = $booking;
+        }
+        
+        wp_send_json_success($calendar_data);
+    }
+    
+    /**
+     * AJAX: ดึงการจองสำหรับปฏิทิน admin
+     */
+    public function ajax_get_admin_calendar_bookings() {
+        // ตรวจสอบ nonce แบบยืดหยุ่น
+        if (!wp_verify_nonce($_POST['nonce'], 'psu_admin_calendar_nonce') && 
+            !check_ajax_referer('psu_admin_nonce', 'nonce', false)) {
+            wp_send_json_error(array('message' => 'การตรวจสอบความปลอดภัยล้มเหลว'));
+            return;
+        }
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'ไม่มีสิทธิ์เข้าถึง'));
+            return;
+        }
+        
+        $year = intval($_POST['year']);
+        $month = intval($_POST['month']); // JavaScript month (0-11)
+        $status_filter = sanitize_text_field($_POST['status_filter']);
+        $service_filter = intval($_POST['service_filter']);
+        $date_from = sanitize_text_field($_POST['date_from']);
+        $date_to = sanitize_text_field($_POST['date_to']);
+        
+        // Convert JS month to PHP month
+        $php_month = $month + 1;
+        
+        global $wpdb;
+        
+        // สร้าง where conditions
+        $where_conditions = array();
+        $where_params = array();
+        
+        // เพิ่มเงื่อนไขเดือนและปี
+        $where_conditions[] = "YEAR(b.booking_date) = %d";
+        $where_params[] = $year;
+        $where_conditions[] = "MONTH(b.booking_date) = %d";
+        $where_params[] = $php_month;
+        
+        // เพิ่มเงื่อนไขจาก filter
+        if (!empty($status_filter)) {
+            $where_conditions[] = "b.status = %s";
+            $where_params[] = $status_filter;
+        }
+        
+        if (!empty($service_filter)) {
+            $where_conditions[] = "b.service_id = %d";
+            $where_params[] = $service_filter;
+        }
+        
+        if (!empty($date_from)) {
+            $where_conditions[] = "b.booking_date >= %s";
+            $where_params[] = $date_from;
+        }
+        
+        if (!empty($date_to)) {
+            $where_conditions[] = "b.booking_date <= %s";
+            $where_params[] = $date_to;
+        }
+        
+        $where_clause = implode(' AND ', $where_conditions);
+        
+        $query = "
+            SELECT 
+                b.id,
+                b.booking_date,
+                b.start_time,
+                b.end_time,
+                b.status,
+                b.customer_name,
+                b.customer_email,
+                b.total_price,
+                s.name as service_name
+            FROM {$wpdb->prefix}psu_bookings b
+            LEFT JOIN {$wpdb->prefix}psu_services s ON b.service_id = s.id
+            WHERE {$where_clause}
+            ORDER BY b.booking_date, b.start_time
+        ";
+        
+        $bookings = $wpdb->get_results($wpdb->prepare($query, $where_params));
         
         // Group by date
         $calendar_data = array();

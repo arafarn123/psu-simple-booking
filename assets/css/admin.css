@@ -1766,3 +1766,382 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Admin Calendar Layout - 2 Column */
+
+.psu-calendar-layout {
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.psu-calendar-left {
+    /* Left column for calendar */
+}
+
+.psu-calendar-right {
+    /* Right column for booking details */
+}
+
+/* Compact Calendar Styles */
+.psu-calendar-container {
+    background: var(--psu-white);
+    border: 1px solid var(--psu-border);
+    border-radius: var(--psu-radius);
+    padding: 15px;
+    box-shadow: var(--psu-shadow);
+}
+
+.psu-calendar-container.compact {
+    padding: 12px;
+}
+
+.psu-calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--psu-border);
+}
+
+.psu-calendar-header h4 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--psu-text);
+    text-align: center;
+    flex: 1;
+}
+
+.button-small {
+    padding: 4px 8px !important;
+    font-size: 12px !important;
+    min-width: 30px;
+    height: 30px;
+}
+
+.psu-calendar-grid-container {
+    border: 1px solid var(--psu-border);
+    border-radius: var(--psu-radius);
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.psu-calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    background-color: var(--psu-light);
+}
+
+.psu-calendar-weekday {
+    padding: 8px 4px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--psu-text);
+    border-right: 1px solid var(--psu-border);
+}
+
+.psu-calendar-weekday:last-child {
+    border-right: none;
+    color: #dc3545; /* สีแดงสำหรับวันเสาร์ */
+}
+
+.psu-calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+}
+
+.psu-calendar-day {
+    min-height: 50px;
+    padding: 4px;
+    border-right: 1px solid var(--psu-border);
+    border-bottom: 1px solid var(--psu-border);
+    background: var(--psu-white);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.psu-calendar-day:nth-child(7n) {
+    border-right: none;
+    color: #dc3545; /* สีแดงสำหรับวันเสาร์ */
+}
+
+.psu-calendar-day-empty {
+    background-color: #f8f9fa;
+    color: #6c757d;
+    cursor: default;
+}
+
+.psu-calendar-day-clickable {
+    cursor: pointer;
+}
+
+.psu-calendar-day-clickable:hover {
+    background-color: #f8f9fa;
+    border-color: #007cba;
+}
+
+.psu-calendar-day.today {
+    background-color: #e7f3ff;
+    border-color: #007cba;
+    font-weight: bold;
+}
+
+.psu-calendar-day.selected {
+    background-color: #007cba !important;
+    color: white;
+}
+
+.psu-calendar-day.other-month {
+    color: #ccc;
+    background-color: #f9f9f9;
+}
+
+.psu-calendar-day.has-approved {
+    background-color: rgba(40, 167, 69, 0.1);
+    border-left: 3px solid #28a745;
+}
+
+.psu-calendar-day.has-pending {
+    background-color: rgba(255, 193, 7, 0.1);
+    border-left: 3px solid #ffc107;
+}
+
+.psu-calendar-day.has-rejected {
+    background-color: rgba(220, 53, 69, 0.1);
+    border-left: 3px solid #dc3545;
+}
+
+.calendar-day-number {
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 3px;
+}
+
+.calendar-day-bookings {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.calendar-booking-badge {
+    font-size: 9px;
+    padding: 1px 3px;
+    border-radius: 2px;
+    color: white;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.calendar-booking-badge.approved {
+    background-color: #28a745;
+}
+
+.calendar-booking-badge.pending {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.calendar-booking-badge.rejected {
+    background-color: #dc3545;
+}
+
+.calendar-booking-count {
+    font-size: 9px;
+    background-color: rgba(0,0,0,0.7);
+    color: white;
+    padding: 1px 4px;
+    border-radius: 8px;
+    align-self: flex-end;
+    margin-top: 1px;
+    min-width: 16px;
+    text-align: center;
+}
+
+.booking-count-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: var(--psu-primary);
+    color: white;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: bold;
+    z-index: 1;
+}
+
+.psu-calendar-legend {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 12px;
+    padding: 8px;
+    background-color: var(--psu-light);
+    border-radius: var(--psu-radius);
+    flex-wrap: wrap;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+}
+
+.legend-color {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    border: 1px solid #ddd;
+}
+
+.status-approved {
+    background-color: #28a745;
+}
+
+.status-pending {
+    background-color: #ffc107;
+}
+
+.status-rejected {
+    background-color: #dc3545;
+}
+
+.booking-item {
+    padding: 12px;
+    border-bottom: 1px solid #eee;
+    transition: background-color 0.2s ease;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    background: #f8f9fa;
+}
+
+.booking-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.booking-item:hover {
+    background-color: #e9ecef;
+    cursor: pointer;
+}
+
+.booking-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.booking-item-time {
+    font-weight: 600;
+    color: var(--psu-text);
+}
+
+.booking-item-status {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+}
+
+.booking-item-status.approved {
+    background-color: #28a745;
+    color: white;
+}
+
+.booking-item-status.pending {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.booking-item-status.rejected {
+    background-color: #dc3545;
+    color: white;
+}
+
+.booking-item-service {
+    font-weight: 600;
+    color: var(--psu-primary);
+    margin-bottom: 4px;
+}
+
+.booking-item-customer {
+    font-size: 13px;
+    color: var(--psu-text-light);
+}
+
+.loading-placeholder {
+    text-align: center;
+    color: #666;
+    padding: 40px 20px;
+}
+
+.no-bookings {
+    text-align: center;
+    color: #999;
+    padding: 20px;
+    font-style: italic;
+}
+
+/* Responsive Layout */
+@media (max-width: 1024px) {
+    .psu-calendar-layout {
+        grid-template-columns: 360px 1fr;
+        gap: 15px;
+    }
+}
+
+@media (max-width: 768px) {
+    .psu-calendar-layout {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .psu-calendar-left {
+        order: 2;
+    }
+    
+    .psu-calendar-right {
+        order: 1;
+    }
+    
+    .psu-calendar-day {
+        min-height: 40px;
+        padding: 3px;
+        font-size: 11px;
+    }
+    
+    .psu-calendar-header {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .psu-calendar-legend {
+        flex-direction: column;
+        gap: 8px;
+        align-items: center;
+    }
+    
+    .booking-count-badge {
+        width: 14px;
+        height: 14px;
+        font-size: 9px;
+    }
+}
