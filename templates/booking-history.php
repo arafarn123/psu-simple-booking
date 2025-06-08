@@ -448,24 +448,36 @@ if (!empty($stats_query)) {
         $('#pagination-container').html(html);
     }
     
-    function renderBookingDetail(booking) {
-        const statusText = getStatusText(booking.status);
-        const statusClass = booking.status;
-        
-        let formDataHtml = '';
-        if (booking.form_data) {
-            try {
-                const formData = JSON.parse(booking.form_data);
-                if (formData.custom_fields) {
-                    formDataHtml = '<h4>ข้อมูลเพิ่มเติม</h4>';
-                    Object.keys(formData.custom_fields).forEach(key => {
-                        formDataHtml += `<p><strong>${key}:</strong> ${formData.custom_fields[key]}</p>`;
-                    });
-                }
-            } catch (e) {
-                // Ignore JSON parse errors
-            }
-        }
+         function renderBookingDetail(booking) {
+         const statusText = getStatusText(booking.status);
+         const statusClass = booking.status;
+         
+         let formDataHtml = '';
+         if (booking.form_data) {
+             try {
+                 const formData = JSON.parse(booking.form_data);
+                 if (formData.custom_fields) {
+                     formDataHtml = '<h4>ข้อมูลเพิ่มเติม</h4>';
+                     Object.keys(formData.custom_fields).forEach(key => {
+                         // ใช้ field label ถ้ามี ไม่งั้นใช้ key เดิม
+                         let fieldLabel = key;
+                         
+                         if (booking.field_labels) {
+                             // ลองหา label โดยใช้ key ตรงๆ หรือโดยไม่มี custom_field_ prefix
+                             if (booking.field_labels[key]) {
+                                 fieldLabel = booking.field_labels[key];
+                             } else if (key.startsWith('custom_field_') && booking.field_labels[key.replace('custom_field_', '')]) {
+                                 fieldLabel = booking.field_labels[key.replace('custom_field_', '')];
+                             }
+                         }
+                         
+                         formDataHtml += `<p><strong>${fieldLabel}:</strong> ${formData.custom_fields[key]}</p>`;
+                     });
+                 }
+             } catch (e) {
+                 // Ignore JSON parse errors
+             }
+         }
         
         const html = `
             <div class="psu-booking-detail-content">
@@ -504,9 +516,10 @@ if (!empty($stats_query)) {
                     </div>
                 ` : ''}
                 
-                ${formDataHtml}
-                
-                ${booking.admin_notes ? `
+                                 ${formDataHtml}
+                 ${renderAdditionalCustomFields(booking)}
+                 
+                 ${booking.admin_notes ? `
                     <div style="margin-bottom: 20px;">
                         <h4>📋 หมายเหตุจากผู้ดูแล</h4>
                         <p>${booking.admin_notes}</p>
@@ -523,9 +536,49 @@ if (!empty($stats_query)) {
         `;
         
         $('#booking-detail-content').html(html);
-    }
-    
-    function loadCalendar() {
+         }
+     
+     function renderAdditionalCustomFields(booking) {
+         let html = '';
+         
+         // ค้นหา custom fields ที่อาจเก็บเป็น properties แยก
+         const customFieldPrefix = 'custom_field_';
+         const customFields = {};
+         
+         // วนผ่าน properties ทั้งหมดของ booking object
+         Object.keys(booking).forEach(key => {
+             if (key.startsWith(customFieldPrefix) && booking[key]) {
+                 customFields[key] = booking[key];
+             }
+         });
+         
+         // ถ้ามี custom fields เพิ่มเติม ให้แสดง
+         if (Object.keys(customFields).length > 0) {
+             html += '<h4>ข้อมูลเพิ่มเติม (Custom Fields)</h4>';
+             
+             Object.keys(customFields).forEach(key => {
+                 let fieldLabel = key;
+                 
+                 if (booking.field_labels) {
+                     // ลองหา label โดยใช้ key ตรงๆ หรือโดยไม่มี custom_field_ prefix
+                     if (booking.field_labels[key]) {
+                         fieldLabel = booking.field_labels[key];
+                     } else if (key.startsWith(customFieldPrefix)) {
+                         const cleanKey = key.replace(customFieldPrefix, '');
+                         if (booking.field_labels[cleanKey]) {
+                             fieldLabel = booking.field_labels[cleanKey];
+                         }
+                     }
+                 }
+                 
+                 html += `<p><strong>${fieldLabel}:</strong> ${customFields[key]}</p>`;
+             });
+         }
+         
+         return html;
+     }
+     
+     function loadCalendar() {
         const year = calendarDate.getFullYear();
         const month = calendarDate.getMonth();
         

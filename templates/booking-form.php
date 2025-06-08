@@ -35,9 +35,32 @@ $texts = array_merge($default_texts, $texts);
 // ข้อมูลผู้ใช้ปัจจุบัน
 $current_user = wp_get_current_user();
 
-// ดึง custom form fields
-$custom_fields_json = $psu_booking->get_setting('custom_form_fields');
-$custom_fields = $custom_fields_json ? json_decode($custom_fields_json, true) : array();
+// ดึง custom form fields จาก database
+$custom_fields_rows = $wpdb->get_results(
+    "SELECT * FROM {$wpdb->prefix}psu_form_fields 
+     WHERE service_id IS NULL AND status = 1 
+     ORDER BY field_order ASC"
+);
+
+$custom_fields = array();
+foreach ($custom_fields_rows as $field) {
+    $options = '';
+    if (!empty($field->field_options)) {
+        $options_array = json_decode($field->field_options, true);
+        if (is_array($options_array)) {
+            $options = implode("\n", $options_array);
+        }
+    }
+    
+    $custom_fields[] = array(
+        'label' => $field->field_label,
+        'type' => $field->field_type,
+        'placeholder' => $field->placeholder,
+        'required' => $field->is_required,
+        'options' => $options,
+        'order' => $field->field_order
+    );
+}
 ?>
 
 <div class="psu-booking-container">
@@ -343,9 +366,7 @@ $custom_fields = $custom_fields_json ? json_decode($custom_fields_json, true) : 
                                         break;
                                 }
                                 
-                                if (!empty($field['description'])) {
-                                    echo '<small class="psu-field-description">' . esc_html($field['description']) . '</small>';
-                                }
+                               
                                 ?>
                             </div>
                         <?php endforeach; ?>

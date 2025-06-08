@@ -210,8 +210,8 @@ class PSU_Simple_Booking {
      */
     public function admin_menu() {
         add_menu_page(
-            'PSU Booking',
-            'ภาพรวม',
+            'PSU Simple Booking',
+            'PSU Simple Booking',
             'manage_options',
             'psu-booking',
             array($this, 'admin_dashboard'),
@@ -271,6 +271,14 @@ class PSU_Simple_Booking {
     public function enqueue_scripts() {
         wp_enqueue_style('psu-booking-style', PSU_BOOKING_PLUGIN_URL . 'assets/css/frontend.css', array(), PSU_BOOKING_VERSION);
         wp_enqueue_script('psu-booking-script', PSU_BOOKING_PLUGIN_URL . 'assets/js/frontend.js', array('jquery'), PSU_BOOKING_VERSION, true);
+        
+        // โหลด CSS และ JS สำหรับ booking history
+        if (is_user_logged_in() && (is_page() || is_single())) {
+            global $post;
+            if ($post && (has_shortcode($post->post_content, 'psu_booking_history') || strpos($post->post_content, 'psu_booking_history') !== false)) {
+                wp_enqueue_style('psu-booking-history-style', PSU_BOOKING_PLUGIN_URL . 'assets/css/booking-history.css', array(), PSU_BOOKING_VERSION);
+            }
+        }
         
         wp_localize_script('psu-booking-script', 'psu_ajax', array(
             'ajax_url' => admin_url('admin-ajax.php'),
@@ -1206,6 +1214,48 @@ class PSU_Simple_Booking {
         if (!$booking) {
             wp_send_json_error(array('message' => 'ไม่พบการจองที่เลือก'));
             return;
+        }
+        
+        // ดึง custom field labels สำหรับบริการนี้
+        $field_labels = array();
+        
+        // ดึง global fields และ service-specific fields
+        $fields = $wpdb->get_results($wpdb->prepare("
+            SELECT field_name, field_label, field_order
+            FROM {$wpdb->prefix}psu_form_fields 
+            WHERE (service_id IS NULL OR service_id = %d) AND status = 1
+            ORDER BY field_order ASC
+        ", $booking->service_id));
+        
+        foreach ($fields as $field) {
+            $field_labels[$field->field_name] = $field->field_label;
+            // รองรับ custom_field_ prefix
+            $field_labels['custom_field_' . $field->field_name] = $field->field_label;
+        }
+        
+        // ดึง field labels จากหมายเลข (สำหรับ custom_field_0, custom_field_1, etc.)
+        foreach ($fields as $index => $field) {
+            $field_labels['custom_field_' . $index] = $field->field_label;
+            $field_labels['custom_field_' . $field->field_order] = $field->field_label;
+        }
+        
+        // เพิ่ม fallback labels สำหรับ fields ที่อาจไม่มีใน database
+        $common_labels = array(
+            'customer_name' => 'ชื่อผู้จอง',
+            'customer_email' => 'อีเมล',
+            'customer_phone' => 'เบอร์โทรศัพท์',
+            'additional_info' => 'ข้อมูลเพิ่มเติม'
+        );
+        
+        $field_labels = array_merge($common_labels, $field_labels);
+        
+        // เพิ่ม field labels ให้กับ booking object
+        $booking->field_labels = $field_labels;
+        
+        // Debug logging
+        error_log('PSU Booking Detail: Field labels - ' . print_r($field_labels, true));
+        if (!empty($booking->form_data)) {
+            error_log('PSU Booking Detail: Form data - ' . $booking->form_data);
         }
         
         wp_send_json_success($booking);

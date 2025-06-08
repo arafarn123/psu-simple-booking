@@ -6,44 +6,86 @@ if (!defined('ABSPATH')) {
 
 // จัดการการบันทึกฟิลด์แบบกำหนดเอง
 if (isset($_POST['save_custom_fields']) && wp_verify_nonce($_POST['psu_form_fields_nonce'], 'psu_save_form_fields')) {
-    $custom_fields = array();
+    global $wpdb;
+    
+    // ลบฟิลด์เก่าที่เป็น global fields (service_id IS NULL)
+    $wpdb->delete(
+        $wpdb->prefix . 'psu_form_fields',
+        array('service_id' => null),
+        array('%d')
+    );
+    
+    $success = true;
     
     if (isset($_POST['custom_fields']) && is_array($_POST['custom_fields'])) {
         foreach ($_POST['custom_fields'] as $index => $field) {
-            $custom_fields[] = array(
-                'label' => sanitize_text_field($field['label']),
-                'type' => sanitize_text_field($field['type']),
+            $field_options = '';
+            if (isset($field['options']) && !empty($field['options'])) {
+                // แปลงตัวเลือกเป็น JSON array
+                $options_array = array_filter(array_map('trim', explode("\n", $field['options'])));
+                $field_options = json_encode($options_array);
+            }
+            
+            $field_data = array(
+                'service_id' => null, // NULL สำหรับ global fields
+                'field_name' => 'custom_field_' . $index,
+                'field_label' => sanitize_text_field($field['label']),
+                'field_type' => sanitize_text_field($field['type']),
+                'field_options' => $field_options,
+                'is_required' => isset($field['required']) ? 1 : 0,
+                'field_order' => intval($index),
                 'placeholder' => sanitize_text_field($field['placeholder']),
-                'description' => sanitize_text_field($field['description']),
-                'required' => isset($field['required']) ? 1 : 0,
-                'options' => isset($field['options']) ? sanitize_textarea_field($field['options']) : '',
-                'order' => intval($index)
+                'status' => 1
             );
+            
+            $result = $wpdb->insert(
+                $wpdb->prefix . 'psu_form_fields',
+                $field_data,
+                array('%d', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%d')
+            );
+            
+            if (!$result) {
+                $success = false;
+                break;
+            }
         }
     }
     
-    // บันทึกลงฐานข้อมูล
-    global $wpdb;
-    $result = $wpdb->replace(
-        $wpdb->prefix . 'psu_settings',
-        array('setting_key' => 'custom_form_fields', 'setting_value' => json_encode($custom_fields)),
-        array('%s', '%s')
-    );
-    
-    if ($result) {
+    if ($success) {
         echo '<div class="notice notice-success"><p>บันทึกฟิลด์ฟอร์มสำเร็จ!</p></div>';
     } else {
-        echo '<div class="notice notice-error"><p>เกิดข้อผิดพลาดในการบันทึกข้อมูล</p></div>';
+        echo '<div class="notice notice-error"><p>เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' . $wpdb->last_error . '</p></div>';
     }
 }
 
 // ดึงฟิลด์ที่มีอยู่
 global $wpdb;
-$custom_fields_json = $wpdb->get_var($wpdb->prepare(
-    "SELECT setting_value FROM {$wpdb->prefix}psu_settings WHERE setting_key = %s",
-    'custom_form_fields'
-));
-$custom_fields = $custom_fields_json ? json_decode($custom_fields_json, true) : array();
+$custom_fields_rows = $wpdb->get_results(
+    "SELECT * FROM {$wpdb->prefix}psu_form_fields 
+     WHERE service_id IS NULL AND status = 1 
+     ORDER BY field_order ASC"
+);
+
+$custom_fields = array();
+foreach ($custom_fields_rows as $field) {
+    $options = '';
+    if (!empty($field->field_options)) {
+        $options_array = json_decode($field->field_options, true);
+        if (is_array($options_array)) {
+            $options = implode("\n", $options_array);
+        }
+    }
+    
+    $custom_fields[] = array(
+        'label' => $field->field_label,
+        'type' => $field->field_type,
+        'placeholder' => $field->placeholder,
+        'description' => '', // ไม่มีในตาราง psu_form_fields
+        'required' => $field->is_required,
+        'options' => $options,
+        'order' => $field->field_order
+    );
+}
 
 // ฟิลด์เริ่มต้น
 $default_fields = array(
@@ -110,9 +152,7 @@ $default_fields = array(
                                     </div>
                                     <div class="psu-field-preview">
                                         <?php echo esc_html($field['placeholder']); ?>
-                                        <?php if ($field['description']): ?>
-                                            <small><?php echo esc_html($field['description']); ?></small>
-                                        <?php endif; ?>
+                                                                            <!-- คำอธิบายเพิ่มเติมถูกลบออก -->
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -165,9 +205,7 @@ $default_fields = array(
                                                 <input type="text" name="custom_fields[<?php echo $index; ?>][placeholder]" 
                                                        value="<?php echo esc_attr($field['placeholder']); ?>"
                                                        placeholder="ข้อความตัวอย่าง" class="psu-input">
-                                                <input type="text" name="custom_fields[<?php echo $index; ?>][description]" 
-                                                       value="<?php echo esc_attr($field['description']); ?>"
-                                                       placeholder="คำอธิบายเพิ่มเติม" class="psu-input">
+                                                                                <!-- คำอธิบายเพิ่มเติมถูกลบออก เนื่องจากไม่มีในตาราง psu_form_fields -->
                                             </div>
                                             
                                             <div class="psu-field-options-list" style="<?php echo in_array($field['type'], ['select', 'radio', 'checkbox']) ? 'display: block;' : 'display: none;'; ?>">
@@ -252,9 +290,7 @@ $default_fields = array(
                                        placeholder="<?php echo esc_attr($field['placeholder']); ?>" 
                                        <?php echo $field['required'] ? 'required' : ''; ?>>
                             <?php endif; ?>
-                            <?php if ($field['description']): ?>
-                                <small class="psu-field-description"><?php echo esc_html($field['description']); ?></small>
-                            <?php endif; ?>
+                            <!-- คำอธิบายเพิ่มเติมถูกลบออก -->
                         </div>
                     <?php endforeach; ?>
                     
@@ -283,7 +319,6 @@ function previewForm() {
         var label = field.querySelector('input[name*="[label]"]').value;
         var type = field.querySelector('select[name*="[type]"]').value;
         var placeholder = field.querySelector('input[name*="[placeholder]"]').value;
-        var description = field.querySelector('input[name*="[description]"]').value;
         var required = field.querySelector('input[name*="[required]"]').checked;
         var options = field.querySelector('textarea[name*="[options]"]');
         
@@ -318,9 +353,7 @@ function previewForm() {
                 fieldHtml += '<input type="' + type + '" class="psu-input" placeholder="' + placeholder + '"' + (required ? ' required' : '') + '>';
             }
             
-            if (description) {
-                fieldHtml += '<small class="psu-field-description">' + description + '</small>';
-            }
+            // ลบ description เนื่องจากไม่มีในตาราง psu_form_fields
             
             fieldHtml += '</div>';
             
@@ -374,8 +407,7 @@ function addCustomField() {
                     </label>
                     <input type="text" name="custom_fields[${fieldCounter}][placeholder]" 
                            value="" placeholder="ข้อความตัวอย่าง" class="psu-input">
-                    <input type="text" name="custom_fields[${fieldCounter}][description]" 
-                           value="" placeholder="คำอธิบายเพิ่มเติม" class="psu-input">
+                                                        <!-- คำอธิบายเพิ่มเติมถูกลบออก เนื่องจากไม่มีในตาราง psu_form_fields -->
                 </div>
                 
                 <div class="psu-field-options-list" style="display: none;">
