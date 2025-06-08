@@ -1,0 +1,762 @@
+/**
+ * PSU Simple Booking - Admin CSS
+ * สไตล์สำหรับหน้า Admin ของระบบจอง
+ */
+
+/* ตัวแปร CSS */
+:root {
+    --psu-primary: #2B3F6A;
+    --psu-secondary: #4A90E2;
+    --psu-success: #00a32a;
+    --psu-warning: #dba617;
+    --psu-error: #d63638;
+    --psu-light: #f1f1f1;
+    --psu-white: #ffffff;
+    --psu-text: #1d2327;
+    --psu-text-light: #50575e;
+    --psu-border: #c3c4c7;
+    --psu-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    --psu-radius: 4px;
+}
+
+/* การ์ดและ Container */
+.psu-card {
+    background: var(--psu-white);
+    border: 1px solid var(--psu-border);
+    border-radius: var(--psu-radius);
+    padding: 20px;
+    margin: 20px 0;
+    box-shadow: var(--psu-shadow);
+}
+
+.psu-card.psu-card-primary {
+    border-left: 4px solid var(--psu-primary);
+}
+
+.psu-card.psu-card-success {
+    border-left: 4px solid var(--psu-success);
+}
+
+.psu-card.psu-card-warning {
+    border-left: 4px solid var(--psu-warning);
+}
+
+.psu-card.psu-card-error {
+    border-left: 4px solid var(--psu-error);
+}
+
+/* สถิติการ์ด */
+.psu-stats-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin: 20px 0;
+}
+
+.psu-stat-card {
+    background: var(--psu-white);
+    border: 1px solid var(--psu-border);
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    box-shadow: var(--psu-shadow);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.psu-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.psu-stat-card.psu-stat-primary { 
+    border-left: 4px solid var(--psu-primary); 
+}
+
+.psu-stat-card.psu-stat-success { 
+    border-left: 4px solid var(--psu-success); 
+}
+
+.psu-stat-card.psu-stat-info { 
+    border-left: 4px solid var(--psu-secondary); 
+}
+
+.psu-stat-card.psu-stat-warning { 
+    border-left: 4px solid var(--psu-warning); 
+}
+
+.psu-stat-card.psu-stat-danger { 
+    border-left: 4px solid var(--psu-error); 
+}
+
+.psu-stat-icon {
+    font-size: 24px;
+    min-width: 24px;
+}
+
+.psu-stat-content {
+    flex: 1;
+}
+
+.psu-stat-number {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--psu-text);
+    margin-bottom: 4px;
+}
+
+.psu-stat-label {
+    color: var(--psu-text-light);
+    font-size: 14px;
+    line-height: 1.3;
+}
+
+/* สถานะ */
+.psu-status-pending {
+    color: var(--psu-warning);
+    font-weight: 600;
+}
+
+.psu-status-approved {
+    color: var(--psu-success);
+    font-weight: 600;
+}
+
+.psu-status-rejected {
+    color: var(--psu-error);
+    font-weight: 600;
+}
+
+.psu-stat-pending {
+    color: var(--psu-warning);
+}
+
+.psu-stat-approved {
+    color: var(--psu-success);
+}
+
+.psu-stat-rejected {
+    color: var(--psu-error);
+}
+
+/* Modal */
+.psu-modal {
+    position: fixed;
+    z-index: 100000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.psu-modal-content {
+    background-color: var(--psu-white);
+    border: 1px solid var(--psu-border);
+    border-radius: var(--psu-radius);
+    width: 100%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.psu-modal-header {
+    padding: 20px;
+    background-color: var(--psu-light);
+    border-bottom: 1px solid var(--psu-border);
+    border-radius: var(--psu-radius) var(--psu-radius) 0 0;
+    position: relative;
+}
+
+.psu-modal-header h2 {
+    margin: 0;
+    color: var(--psu-text);
+    font-size: 20px;
+    padding-right: 40px;
+}
+
+.psu-modal-close {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    color: var(--psu-text-light);
+    background: none;
+    border: none;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.2s ease;
+}
+
+.psu-modal-close:hover {
+    background-color: rgba(0,0,0,0.1);
+    color: var(--psu-text);
+}
+
+.psu-modal-body {
+    padding: 20px;
+}
+
+/* ข้อมูลการจอง */
+.booking-info {
+    background-color: #f9f9f9;
+    border: 1px solid #e1e1e1;
+    border-radius: var(--psu-radius);
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.booking-info p {
+    margin: 8px 0;
+    line-height: 1.4;
+}
+
+.booking-info strong {
+    color: var(--psu-text);
+    font-weight: 600;
+}
+
+/* ตัวกรอง */
+.psu-filter-section {
+    background: var(--psu-white);
+    border: 1px solid var(--psu-border);
+    border-radius: var(--psu-radius);
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.psu-filter-form {
+    display: flex;
+    gap: 15px;
+    align-items: end;
+    flex-wrap: wrap;
+}
+
+.psu-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 120px;
+}
+
+.psu-filter-group label {
+    font-weight: 600;
+    color: var(--psu-text-light);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.psu-filter-group select,
+.psu-filter-group input {
+    padding: 6px 8px;
+    border: 1px solid var(--psu-border);
+    border-radius: var(--psu-radius);
+    font-size: 14px;
+}
+
+/* แผนภูมิ */
+.psu-charts-section {
+    margin: 30px 0;
+}
+
+.psu-chart-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+}
+
+.psu-chart-half {
+    background: var(--psu-white);
+    border: 1px solid var(--psu-border);
+    border-radius: var(--psu-radius);
+    padding: 20px;
+    box-shadow: var(--psu-shadow);
+}
+
+.psu-chart-half h3 {
+    margin: 0 0 20px 0;
+    color: var(--psu-text);
+    font-size: 18px;
+    font-weight: 600;
+}
+
+/* ปฏิทิน */
+.psu-calendar-section {
+    margin: 30px 0;
+    background: var(--psu-white);
+    border: 1px solid var(--psu-border);
+    border-radius: var(--psu-radius);
+    padding: 20px;
+    box-shadow: var(--psu-shadow);
+}
+
+.psu-calendar {
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.psu-calendar-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    margin-bottom: 10px;
+}
+
+.psu-calendar-day-name {
+    text-align: center;
+    font-weight: 600;
+    padding: 12px;
+    background: var(--psu-light);
+    color: var(--psu-text);
+    font-size: 14px;
+}
+
+.psu-calendar-body {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background: var(--psu-border);
+}
+
+.psu-calendar-day {
+    aspect-ratio: 1;
+    border: none;
+    padding: 8px;
+    position: relative;
+    background: var(--psu-white);
+    cursor: default;
+    min-height: 60px;
+    display: flex;
+    flex-direction: column;
+}
+
+.psu-calendar-day.psu-calendar-has-booking {
+    background: #e8f4fd;
+}
+
+.psu-calendar-day.psu-calendar-empty {
+    background: #f9f9f9;
+}
+
+.psu-calendar-date {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--psu-text);
+}
+
+.psu-calendar-bookings {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    background: var(--psu-primary);
+    color: white;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    min-width: 16px;
+    text-align: center;
+    font-weight: 600;
+}
+
+/* ส่งออกรายงาน */
+.psu-export-section {
+    background: var(--psu-white);
+    border: 1px solid var(--psu-border);
+    border-radius: var(--psu-radius);
+    padding: 20px;
+    margin: 30px 0;
+    box-shadow: var(--psu-shadow);
+}
+
+.psu-export-section h3 {
+    margin-top: 0;
+    color: var(--psu-text);
+}
+
+.psu-export-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    flex-wrap: wrap;
+}
+
+/* การตั้งค่า */
+.psu-settings-tabs {
+    margin-top: 20px;
+}
+
+.psu-tab-content {
+    background: var(--psu-white);
+    border: 1px solid var(--psu-border);
+    border-top: none;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.psu-email-setting {
+    border: 1px solid #e1e1e1;
+    border-radius: var(--psu-radius);
+    padding: 20px;
+    margin: 20px 0;
+    background: #f9f9f9;
+}
+
+.psu-email-setting h4 {
+    margin-top: 0;
+    color: var(--psu-primary);
+    font-size: 16px;
+}
+
+.psu-note {
+    background: #e8f4fd;
+    border-left: 4px solid var(--psu-primary);
+    padding: 15px;
+    margin: 20px 0;
+    border-radius: 0 var(--psu-radius) var(--psu-radius) 0;
+}
+
+.psu-note h4 {
+    margin-top: 0;
+    color: var(--psu-primary);
+}
+
+.psu-note ul {
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+.psu-note code {
+    background: var(--psu-white);
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    border: 1px solid #ddd;
+}
+
+/* Shortcodes */
+.psu-shortcode-list {
+    display: grid;
+    gap: 20px;
+}
+
+.psu-shortcode-item {
+    background: var(--psu-white);
+    border: 1px solid var(--psu-border);
+    border-radius: var(--psu-radius);
+    padding: 20px;
+    box-shadow: var(--psu-shadow);
+}
+
+.psu-shortcode-item h4 {
+    margin-top: 0;
+    color: var(--psu-primary);
+}
+
+.psu-shortcode-code {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--psu-light);
+    padding: 12px;
+    border-radius: var(--psu-radius);
+    margin: 15px 0;
+    border: 1px solid var(--psu-border);
+}
+
+.psu-shortcode-code code {
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    background: var(--psu-white);
+    padding: 8px 12px;
+    border-radius: 2px;
+    flex: 1;
+    border: 1px solid #ddd;
+    color: var(--psu-primary);
+    font-weight: 600;
+}
+
+/* ปุ่มและลิงก์ */
+.button-link-delete {
+    color: var(--psu-error) !important;
+    text-decoration: none;
+}
+
+.button-link-delete:hover {
+    color: #a00 !important;
+}
+
+.button.psu-primary {
+    background: var(--psu-primary);
+    border-color: var(--psu-primary);
+    color: white;
+}
+
+.button.psu-primary:hover {
+    background: #1e2d4a;
+    border-color: #1e2d4a;
+}
+
+/* ตาราง */
+.wp-list-table .column-cb {
+    width: 40px;
+}
+
+.wp-list-table th.manage-column {
+    font-weight: 600;
+    color: var(--psu-text);
+}
+
+.wp-list-table tbody tr:hover {
+    background-color: #f9f9f9;
+}
+
+/* ฟอร์ม */
+.form-table th {
+    width: 200px;
+    font-weight: 600;
+    color: var(--psu-text);
+}
+
+.form-table td {
+    vertical-align: top;
+    padding-top: 15px;
+}
+
+.form-table .description {
+    font-style: italic;
+    color: var(--psu-text-light);
+    margin-top: 5px;
+}
+
+/* Navigation tabs */
+.nav-tab-wrapper {
+    border-bottom: 1px solid var(--psu-border);
+    margin-bottom: 0;
+}
+
+.nav-tab {
+    text-decoration: none;
+    border: 1px solid transparent;
+    padding: 12px 16px;
+    color: var(--psu-text-light);
+    font-weight: 500;
+}
+
+.nav-tab:hover,
+.nav-tab:focus {
+    background-color: var(--psu-light);
+    color: var(--psu-text);
+}
+
+.nav-tab-active {
+    background: var(--psu-white) !important;
+    border-color: var(--psu-border) var(--psu-border) var(--psu-white) !important;
+    color: var(--psu-text) !important;
+    font-weight: 600;
+}
+
+/* แจ้งเตือน */
+.notice.psu-notice {
+    border-left-width: 4px;
+    padding: 12px;
+}
+
+.notice.psu-notice.psu-notice-success {
+    border-left-color: var(--psu-success);
+    background-color: #f0f8f0;
+}
+
+.notice.psu-notice.psu-notice-error {
+    border-left-color: var(--psu-error);
+    background-color: #fdf0f0;
+}
+
+.notice.psu-notice.psu-notice-warning {
+    border-left-color: var(--psu-warning);
+    background-color: #fdf8f0;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .psu-chart-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .psu-stats-cards {
+        grid-template-columns: 1fr;
+    }
+    
+    .psu-filter-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .psu-filter-group {
+        min-width: auto;
+    }
+    
+    .psu-modal-content {
+        margin: 10px;
+        max-width: none;
+    }
+    
+    .psu-export-buttons {
+        flex-direction: column;
+    }
+    
+    .psu-export-buttons .button {
+        text-align: center;
+    }
+    
+    .psu-calendar-day {
+        min-height: 50px;
+        padding: 4px;
+    }
+    
+    .psu-calendar-day-name {
+        padding: 8px 4px;
+        font-size: 12px;
+    }
+    
+    .psu-shortcode-code {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .psu-shortcode-code code {
+        margin-bottom: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .psu-stat-card {
+        flex-direction: column;
+        text-align: center;
+        gap: 10px;
+    }
+    
+    .psu-stat-number {
+        font-size: 24px;
+    }
+    
+    .psu-calendar-day {
+        min-height: 40px;
+        padding: 2px;
+    }
+    
+    .psu-calendar-date {
+        font-size: 12px;
+    }
+    
+    .psu-modal-header h2 {
+        font-size: 18px;
+        padding-right: 30px;
+    }
+    
+    .psu-modal-close {
+        right: 15px;
+        font-size: 20px;
+    }
+}
+
+/* Animation */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from { 
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to { 
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.psu-modal {
+    animation: fadeIn 0.3s ease;
+}
+
+.psu-modal-content {
+    animation: slideUp 0.3s ease;
+}
+
+.psu-stat-card {
+    animation: slideUp 0.3s ease;
+}
+
+/* Loading state */
+.psu-loading {
+    opacity: 0.6;
+    pointer-events: none;
+    position: relative;
+}
+
+.psu-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid var(--psu-border);
+    border-top-color: var(--psu-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ปรับปรุงการแสดงผลของฟอร์ม */
+.form-table input[type="text"],
+.form-table input[type="email"],
+.form-table input[type="number"],
+.form-table input[type="url"],
+.form-table input[type="time"],
+.form-table input[type="date"],
+.form-table select,
+.form-table textarea {
+    border: 1px solid var(--psu-border);
+    border-radius: var(--psu-radius);
+    padding: 8px 12px;
+    font-size: 14px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-table input[type="text"]:focus,
+.form-table input[type="email"]:focus,
+.form-table input[type="number"]:focus,
+.form-table input[type="url"]:focus,
+.form-table input[type="time"]:focus,
+.form-table input[type="date"]:focus,
+.form-table select:focus,
+.form-table textarea:focus {
+    border-color: var(--psu-primary);
+    box-shadow: 0 0 0 2px rgba(43, 63, 106, 0.1);
+    outline: none;
+}
