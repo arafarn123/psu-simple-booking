@@ -55,6 +55,8 @@ class PSU_Simple_Booking {
         add_action('wp_ajax_nopriv_psu_get_timeslots', array($this, 'ajax_get_timeslots'));
         add_action('wp_ajax_psu_submit_booking', array($this, 'ajax_submit_booking'));
         add_action('wp_ajax_nopriv_psu_submit_booking', array($this, 'ajax_submit_booking'));
+        add_action('wp_ajax_psu_get_date_booking_status', array($this, 'ajax_get_date_booking_status'));
+        add_action('wp_ajax_nopriv_psu_get_date_booking_status', array($this, 'ajax_get_date_booking_status'));
         
         // Email hooks
         add_action('psu_booking_created', array($this, 'send_booking_notification'), 10, 2);
@@ -739,6 +741,76 @@ class PSU_Simple_Booking {
      */
     public function send_status_notification($booking_id, $old_status, $new_status) {
         // TODO: Implement status change notification
+    }
+    
+    /**
+     * AJAX: ดึงสถานะการจองของวันที่เฉพาะ
+     */
+    public function ajax_get_date_booking_status() {
+        check_ajax_referer('psu_booking_nonce', 'nonce');
+        
+        $service_id = intval($_POST['service_id']);
+        $date = sanitize_text_field($_POST['date']);
+        
+        $status = $this->get_date_booking_status($service_id, $date);
+        
+        wp_send_json_success(array('status' => $status));
+    }
+    
+    /**
+     * ดึงสถานะการจองของวันที่เฉพาะ
+     */
+    public function get_date_booking_status($service_id, $date) {
+        global $wpdb;
+        
+        // ดึงข้อมูลบริการ
+        $service = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}psu_services WHERE id = %d AND status = 1",
+            $service_id
+        ));
+        
+        if (!$service) {
+            return 'unavailable';
+        }
+        
+        // ตรวจสอบวันทำการ
+        $day_of_week = date('w', strtotime($date));
+        $working_days = explode(',', $service->working_days);
+        if (!in_array($day_of_week, $working_days)) {
+            return 'unavailable';
+        }
+        
+        // ดึง timeslots ทั้งหมดที่เป็นไปได้
+        $all_timeslots = $this->get_available_timeslots($service_id, $date);
+        
+        if (empty($all_timeslots)) {
+            return 'unavailable';
+        }
+        
+        // นับจำนวน timeslots ทั้งหมด และที่ถูกจองแล้ว
+        $total_slots = 0;
+        $booked_slots = 0;
+        
+        foreach ($all_timeslots as $category) {
+            foreach ($category['slots'] as $slot) {
+                $total_slots++;
+                if (!$slot['available']) {
+                    $booked_slots++;
+                }
+            }
+        }
+        
+        if ($total_slots === 0) {
+            return 'unavailable';
+        }
+        
+        if ($booked_slots === 0) {
+            return 'available';
+        } else if ($booked_slots === $total_slots) {
+            return 'full';
+        } else {
+            return 'partial';
+        }
     }
     
     /**
