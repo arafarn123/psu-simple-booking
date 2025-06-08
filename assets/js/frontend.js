@@ -463,6 +463,10 @@
             </div>
         `;
         $('#service-details-display').html(html);
+        
+        // อัปเดตชื่อบริการในทุก step
+        $('#current-service-name').text(selectedService.name);
+        $('#booking-summary-service').text(selectedService.name);
     }
 
     function changeMonth(direction) {
@@ -742,6 +746,9 @@
         // แสดงวันที่เลือกใน step 3
         $('#selected-date-display').text(formatThaiDate(date));
         
+        // อัปเดตสรุปในส่วนอื่นๆ
+        $('#summary-date').text(formatThaiDate(date));
+        
         // เปิดใช้งานปุ่มถัดไป
         $('#next-to-step-3').removeClass('psu-btn-disabled').prop('disabled', false);
         
@@ -862,7 +869,7 @@
         } else {
             // ตรวจสอบว่าเป็นหมวดหมู่เดียวกันหรือไม่
             if (selectedTimeslotCategory && selectedTimeslotCategory !== currentCategory) {
-                showNotification('🔄 เปลี่ยนหมวดหมู่การจอง - รีเซ็ตการเลือกก่อนหน้า', 'info');
+                // showNotification('🔄 เปลี่ยนหมวดหมู่การจอง - รีเซ็ตการเลือกก่อนหน้า', 'info');
                 
                 // รีเซ็ตการเลือกทั้งหมวดหมู่
                 $('.psu-timeslot-selected').removeClass('psu-timeslot-selected');
@@ -930,6 +937,9 @@
         
         $('#selected-timeslots').show();
         $('#next-to-step-4').removeClass('psu-btn-disabled').prop('disabled', false);
+        
+        // อัปเดตสรุปใน step 4
+        updateFinalSummary();
     }
 
     function updateBookingSummary() {
@@ -941,6 +951,21 @@
         
         const totalPrice = selectedTimeslots.reduce((sum, slot) => sum + slot.price, 0);
         $('#booking-summary-total').text(Number(totalPrice).toLocaleString() + ' บาท');
+        
+        // อัปเดตสรุปการจองใน step 4
+        updateFinalSummary();
+    }
+    
+    function updateFinalSummary() {
+        if (selectedService && selectedDate && selectedTimeslots.length > 0) {
+            const totalPrice = selectedTimeslots.reduce((sum, slot) => sum + slot.price, 0);
+            const timeslotsText = selectedTimeslots.map(s => s.display).join(', ');
+            
+            $('#summary-service').text(selectedService.name);
+            $('#summary-date').text(formatThaiDate(selectedDate));
+            $('#summary-timeslots').text(timeslotsText);
+            $('#summary-total').text(Number(totalPrice).toLocaleString() + ' บาท');
+        }
     }
 
     function submitBooking() {
@@ -1052,6 +1077,16 @@
         $('.psu-step').addClass('psu-step-hidden');
         $(`#step-${step}`).removeClass('psu-step-hidden');
         currentStep = step;
+        
+        // อัปเดตการแสดงผลตาม step
+        if (step === 1 && selectedService) {
+            // ไฮไลท์บริการที่เลือกแล้วใน step 1
+            $('.psu-service-card').removeClass('psu-service-selected');
+            $(`.psu-service-card[data-service-id="${selectedService.id}"]`).addClass('psu-service-selected');
+        } else if (step === 4) {
+            // อัปเดตสรุปการจองใน step 4
+            updateFinalSummary();
+        }
         
         // Scroll to top
         $('.psu-booking-form')[0].scrollIntoView({ 

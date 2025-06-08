@@ -175,6 +175,45 @@ $custom_fields = $custom_fields_json ? json_decode($custom_fields_json, true) : 
         <div class="psu-step psu-step-hidden" id="step-4">
             <h3 class="psu-step-title"><?php echo esc_html($texts['customer_info']); ?></h3>
             
+            <!-- Progress Indicator -->
+            <div style="background: var(--psu-white); padding: 20px; margin-bottom: 25px; border-radius: var(--psu-radius); border: 1px solid var(--psu-border-light); text-align: center;">
+                <div class="progress-indicator" style="display: flex; justify-content: space-between; align-items: center; max-width: 500px; margin: 0 auto;">
+                    <div style="flex: 1; text-align: center; color: var(--psu-success);">
+                        <div style="width: 30px; height: 30px; border-radius: 50%; background: var(--psu-success); color: white; display: flex; align-items: center; justify-content: center; margin: 0 auto 5px; font-weight: bold;">✓</div>
+                        <small>เลือกบริการ</small>
+                    </div>
+                    <div style="width: 30px; height: 2px; background: var(--psu-success); margin: 0 10px;"></div>
+                    <div style="flex: 1; text-align: center; color: var(--psu-success);">
+                        <div style="width: 30px; height: 30px; border-radius: 50%; background: var(--psu-success); color: white; display: flex; align-items: center; justify-content: center; margin: 0 auto 5px; font-weight: bold;">✓</div>
+                        <small>เลือกวันที่</small>
+                    </div>
+                    <div style="width: 30px; height: 2px; background: var(--psu-success); margin: 0 10px;"></div>
+                    <div style="flex: 1; text-align: center; color: var(--psu-success);">
+                        <div style="width: 30px; height: 30px; border-radius: 50%; background: var(--psu-success); color: white; display: flex; align-items: center; justify-content: center; margin: 0 auto 5px; font-weight: bold;">✓</div>
+                        <small>เลือกเวลา</small>
+                    </div>
+                    <div style="width: 30px; height: 2px; background: var(--psu-primary); margin: 0 10px;"></div>
+                    <div style="flex: 1; text-align: center; color: var(--psu-primary);">
+                        <div style="width: 30px; height: 30px; border-radius: 50%; background: var(--psu-primary); color: white; display: flex; align-items: center; justify-content: center; margin: 0 auto 5px; font-weight: bold;">4</div>
+                        <small><strong>กรอกข้อมูล</strong></small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- สรุปการจองก่อนกรอกข้อมูล -->
+            <div id="final-booking-summary" style="background: linear-gradient(135deg, var(--psu-cream) 0%, var(--psu-off-white) 100%); padding: 25px; margin-bottom: 30px; border-radius: var(--psu-radius-lg); border: 2px solid var(--psu-primary); box-shadow: var(--psu-shadow-soft);">
+                <h4 style="color: var(--psu-primary); font-family: var(--psu-font-heading); margin: 0 0 20px 0; font-size: 20px; display: flex; align-items: center;">
+                    <span style="margin-right: 10px;">📋</span>
+                    สรุปการจอง
+                </h4>
+                <div id="final-summary-content" style="color: var(--psu-text); line-height: 1.8;">
+                    <div class="summary-item">🏢 <strong>บริการ:</strong> <span id="summary-service">-</span></div>
+                    <div class="summary-item">📅 <strong>วันที่:</strong> <span id="summary-date">-</span></div>
+                    <div class="summary-item">🕐 <strong>เวลา:</strong> <span id="summary-timeslots">-</span></div>
+                    <div class="summary-item">💰 <strong>ราคารวม:</strong> <span id="summary-total">-</span></div>
+                </div>
+            </div>
+            
             <form id="psu-customer-form">
                 <div class="psu-form-group">
                     <label for="customer_name">
@@ -433,6 +472,33 @@ $custom_fields = $custom_fields_json ? json_decode($custom_fields_json, true) : 
     background: var(--psu-off-white);
 }
 
+/* Summary Styles */
+.summary-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(43, 63, 106, 0.1);
+}
+
+.summary-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--psu-primary);
+}
+
+.summary-item strong {
+    margin: 0 8px;
+    min-width: 100px;
+}
+
+.summary-item span {
+    flex: 1;
+    text-align: right;
+}
+
 /* Enhanced responsive */
 @media (max-width: 768px) {
     .psu-radio-label,
@@ -452,6 +518,32 @@ $custom_fields = $custom_fields_json ? json_decode($custom_fields_json, true) : 
     
     #service-date-summary > div:last-child {
         margin-bottom: 0;
+    }
+    
+    .summary-item {
+        flex-direction: column;
+        text-align: center;
+        gap: 5px;
+    }
+    
+    .summary-item strong {
+        min-width: auto;
+    }
+    
+    .summary-item span {
+        text-align: center;
+    }
+    
+    /* Progress Indicator Responsive */
+    .progress-indicator {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .progress-indicator > div:nth-child(2n) {
+        width: 2px;
+        height: 20px;
+        margin: 0 auto;
     }
 }
 </style>
