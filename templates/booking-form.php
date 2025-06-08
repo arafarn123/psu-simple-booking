@@ -34,6 +34,11 @@ $texts = array_merge($default_texts, $texts);
 
 // ข้อมูลผู้ใช้ปัจจุบัน
 $current_user = wp_get_current_user();
+
+// Debug: แสดงจำนวนบริการ
+if (empty($services)) {
+    echo '<div class="notice notice-warning"><p>🚨 ไม่พบบริการในระบบ กรุณาเพิ่มบริการในหน้า Admin หรือ Activate plugin ใหม่</p></div>';
+}
 ?>
 
 <div class="psu-booking-container">
@@ -50,19 +55,18 @@ $current_user = wp_get_current_user();
                     foreach ($services as $service): 
                         if ($current_category !== $service->category && !empty($service->category)):
                             if ($current_category !== '') echo '</div>';
-                            echo '<h4 class="psu-category-title">' . esc_html($service->category) . '</h4>';
-                            echo '<div class="psu-category-services">';
+                            echo '<h4 class="psu-category-title" style="grid-column: 1/-1; color: #2B3F6A; margin: 20px 0 10px 0;">' . esc_html($service->category) . '</h4>';
                             $current_category = $service->category;
                         endif;
                     ?>
-                        <div class="psu-service-card" data-service-id="<?php echo $service->id; ?>">
+                        <div class="psu-service-card" data-service-id="<?php echo $service->id; ?>" data-price="<?php echo $service->price; ?>">
                             <?php if ($service->image_url): ?>
                                 <div class="psu-service-image">
                                     <img src="<?php echo esc_url($service->image_url); ?>" alt="<?php echo esc_attr($service->name); ?>">
                                 </div>
                             <?php endif; ?>
                             <div class="psu-service-content">
-                                <h4><?php echo esc_html($service->name); ?></h4>
+                                <h4 class="service-name"><?php echo esc_html($service->name); ?></h4>
                                 <p><?php echo esc_html($service->description); ?></p>
                                 <div class="psu-service-details">
                                     <span class="psu-price">
@@ -78,10 +82,11 @@ $current_user = wp_get_current_user();
                             </div>
                         </div>
                     <?php endforeach; ?>
-                    <?php if ($current_category !== '') echo '</div>'; ?>
                 </div>
             <?php else: ?>
-                <p class="psu-no-services">ไม่มีบริการให้จอง</p>
+                <div class="psu-no-services">
+                    <h4>ไม่มีบริการให้จอง</h4>
+                </div>
             <?php endif; ?>
         </div>
 
@@ -188,349 +193,97 @@ $current_user = wp_get_current_user();
 </div>
 
 <script>
-// ตัวแปร global สำหรับการจอง
-let selectedService = null;
-let selectedDate = null;
-let selectedTimeslots = [];
-let currentStep = 1;
-let currentMonth = new Date().getMonth();
-let currentYear = new Date().getFullYear();
-
-// เริ่มต้น
+// ตรวจสอบว่า jQuery และ psu_ajax พร้อมใช้งาน
 jQuery(document).ready(function($) {
-    initBookingForm();
-});
-
-function initBookingForm() {
-    // เลือกบริการ
-    jQuery('.psu-select-service').on('click', function() {
-        const serviceId = jQuery(this).data('service-id');
-        selectService(serviceId);
-    });
+    console.log('🚀 PSU Booking Form Loading...');
+    console.log('AJAX URL:', psu_ajax ? psu_ajax.ajax_url : 'NOT AVAILABLE');
+    console.log('Services count:', $('.psu-service-card').length);
     
-    // ปฏิทิน
-    jQuery('#prev-month').on('click', function() {
-        currentMonth--;
-        if (currentMonth < 0) {
-            currentMonth = 11;
-            currentYear--;
-        }
-        renderCalendar();
-    });
-    
-    jQuery('#next-month').on('click', function() {
-        currentMonth++;
-        if (currentMonth > 11) {
-            currentMonth = 0;
-            currentYear++;
-        }
-        renderCalendar();
-    });
-    
-    // ปุ่ม next step 3
-    jQuery('#next-to-step-3').on('click', function() {
-        if (!jQuery(this).hasClass('psu-btn-disabled')) {
-            loadTimeslots();
-            psuGoToStep(3);
-        }
-    });
-    
-    // ปุ่ม next step 4
-    jQuery('#next-to-step-4').on('click', function() {
-        if (!jQuery(this).hasClass('psu-btn-disabled')) {
-            updateBookingSummary();
-            psuGoToStep(4);
-        }
-    });
-    
-    // ส่งการจอง
-    jQuery('#submit-booking').on('click', function() {
-        submitBooking();
-    });
-    
-    renderCalendar();
-}
-
-function selectService(serviceId) {
-    // ดึงข้อมูลบริการ
-    jQuery.ajax({
-        url: psu_ajax.ajax_url,
-        type: 'POST',
-        data: {
-            action: 'psu_get_service',
-            service_id: serviceId,
-            nonce: psu_ajax.nonce
-        },
-        success: function(response) {
-            if (response.success) {
-                selectedService = response.data;
-                updateSelectedServiceInfo();
-                psuGoToStep(2);
-            }
-        }
-    });
-}
-
-function updateSelectedServiceInfo() {
-    const html = `
-        <div class="psu-service-summary">
-            <h4>${selectedService.name}</h4>
-            <p>${selectedService.description}</p>
-            <p>ราคา: ${selectedService.price > 0 ? Number(selectedService.price).toLocaleString() + ' บาท/ชั่วโมง' : 'ฟรี'}</p>
-        </div>
-    `;
-    jQuery('#selected-service-info').html(html);
-}
-
-function renderCalendar() {
-    const monthNames = [
-        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
-    ];
-    
-    jQuery('#calendar-month-year').text(monthNames[currentMonth] + ' ' + (currentYear + 543));
-    
-    const firstDay = new Date(currentYear, currentMonth, 1).getDay();
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const today = new Date();
-    
-    let calendarHtml = '<div class="psu-calendar-grid">';
-    calendarHtml += '<div class="psu-calendar-header-day">อา</div>';
-    calendarHtml += '<div class="psu-calendar-header-day">จ</div>';
-    calendarHtml += '<div class="psu-calendar-header-day">อ</div>';
-    calendarHtml += '<div class="psu-calendar-header-day">พ</div>';
-    calendarHtml += '<div class="psu-calendar-header-day">พฤ</div>';
-    calendarHtml += '<div class="psu-calendar-header-day">ศ</div>';
-    calendarHtml += '<div class="psu-calendar-header-day">ส</div>';
-    
-    // เติมช่องว่างก่อนวันที่ 1
-    for (let i = 0; i < firstDay; i++) {
-        calendarHtml += '<div class="psu-calendar-day psu-calendar-day-empty"></div>';
-    }
-    
-    // วันที่ในเดือน
-    for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(currentYear, currentMonth, day);
-        const dateStr = date.getFullYear() + '-' + 
-                       String(date.getMonth() + 1).padStart(2, '0') + '-' + 
-                       String(day).padStart(2, '0');
-        
-        let classes = 'psu-calendar-day';
-        
-        // ตรวจสอบวันที่ผ่านมาแล้ว
-        if (date < today.setHours(0,0,0,0)) {
-            classes += ' psu-calendar-day-disabled';
-        } else {
-            classes += ' psu-calendar-day-available';
-        }
-        
-        // วันที่ถูกเลือก
-        if (selectedDate === dateStr) {
-            classes += ' psu-calendar-day-selected';
-        }
-        
-        calendarHtml += `<div class="${classes}" data-date="${dateStr}">${day}</div>`;
-    }
-    
-    calendarHtml += '</div>';
-    jQuery('#psu-calendar').html(calendarHtml);
-    
-    // Event click วันที่
-    jQuery('.psu-calendar-day-available').on('click', function() {
-        const date = jQuery(this).data('date');
-        selectDate(date);
-    });
-}
-
-function selectDate(date) {
-    selectedDate = date;
-    selectedTimeslots = [];
-    
-    // อัพเดท UI
-    jQuery('.psu-calendar-day-selected').removeClass('psu-calendar-day-selected');
-    jQuery(`[data-date="${date}"]`).addClass('psu-calendar-day-selected');
-    
-    // เปิดใช้งานปุ่ม next
-    jQuery('#next-to-step-3').removeClass('psu-btn-disabled').prop('disabled', false);
-    
-    // อัพเดทข้อมูลวันที่เลือก
-    const dateObj = new Date(date);
-    const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
-    const dateText = dateObj.toLocaleDateString('th-TH', options);
-    jQuery('#selected-date-info').html(`<p>วันที่เลือก: <strong>${dateText}</strong></p>`);
-}
-
-function loadTimeslots() {
-    jQuery('#timeslots-container').html('<div class="psu-loading">กำลังโหลดช่วงเวลาที่ว่าง...</div>');
-    
-    jQuery.ajax({
-        url: psu_ajax.ajax_url,
-        type: 'POST',
-        data: {
-            action: 'psu_get_timeslots',
-            service_id: selectedService.id,
-            date: selectedDate,
-            nonce: psu_ajax.nonce
-        },
-        success: function(response) {
-            if (response.success) {
-                renderTimeslots(response.data);
-            } else {
-                jQuery('#timeslots-container').html('<p>ไม่สามารถโหลดข้อมูลเวลาได้</p>');
-            }
-        },
-        error: function() {
-            jQuery('#timeslots-container').html('<p>เกิดข้อผิดพลาดในการโหลดข้อมูล</p>');
-        }
-    });
-}
-
-function renderTimeslots(timeslots) {
-    if (timeslots.length === 0) {
-        jQuery('#timeslots-container').html('<p>ไม่มีช่วงเวลาว่างในวันนี้</p>');
+    // ตรวจสอบว่ามีบริการหรือไม่
+    if ($('.psu-service-card').length === 0) {
+        console.warn('⚠️ No services found!');
         return;
     }
     
-    let html = '<div class="psu-timeslots-grid">';
-    timeslots.forEach(function(slot) {
-        html += `
-            <div class="psu-timeslot" data-start="${slot.start}" data-end="${slot.end}" data-price="${slot.price}">
-                <div class="psu-timeslot-time">${slot.display}</div>
-                <div class="psu-timeslot-price">${Number(slot.price).toLocaleString()} บาท</div>
-            </div>
-        `;
-    });
-    html += '</div>';
-    
-    jQuery('#timeslots-container').html(html);
-    
-    // Event click timeslot
-    jQuery('.psu-timeslot').on('click', function() {
-        toggleTimeslot(this);
-    });
-}
-
-function toggleTimeslot(element) {
-    const $slot = jQuery(element);
-    const start = $slot.data('start');
-    const end = $slot.data('end');
-    const price = parseFloat($slot.data('price'));
-    
-    if ($slot.hasClass('psu-timeslot-selected')) {
-        // ยกเลิกการเลือก
-        $slot.removeClass('psu-timeslot-selected');
-        selectedTimeslots = selectedTimeslots.filter(slot => !(slot.start === start && slot.end === end));
+    // ทดสอบ frontend.js
+    if (typeof psuGoToStep === 'function') {
+        console.log('✅ Frontend JS loaded successfully');
     } else {
-        // เลือก timeslot
-        $slot.addClass('psu-timeslot-selected');
-        selectedTimeslots.push({
-            start: start,
-            end: end,
-            price: price,
-            display: $slot.find('.psu-timeslot-time').text()
+        console.error('❌ Frontend JS not loaded properly');
+    }
+    
+    // Event สำหรับเลือกบริการ (backup)
+    $('.psu-service-card').off('click').on('click', function() {
+        $('.psu-service-card').removeClass('selected');
+        $(this).addClass('selected');
+        
+        const serviceId = $(this).data('service-id');
+        console.log('🎯 Service selected:', serviceId);
+        
+        // ถ้า frontend.js ไม่ทำงาน ให้ทำแบบ manual
+        if (typeof selectService === 'function') {
+            selectService(serviceId);
+        } else {
+            console.log('Using manual service selection...');
+            manualSelectService(serviceId);
+        }
+    });
+    
+    function manualSelectService(serviceId) {
+        if (!psu_ajax) {
+            alert('ระบบไม่พร้อมใช้งาน กรุณาลองใหม่อีกครั้ง');
+            return;
+        }
+        
+        $.ajax({
+            url: psu_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'psu_get_service',
+                service_id: serviceId,
+                nonce: psu_ajax.nonce
+            },
+            success: function(response) {
+                console.log('✅ Service data received:', response);
+                if (response.success) {
+                    updateServiceInfo(response.data);
+                    showStep(2);
+                } else {
+                    alert('ไม่สามารถโหลดข้อมูลบริการได้');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('❌ AJAX Error:', error);
+                alert('เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + error);
+            }
         });
     }
     
-    updateSelectedTimeslots();
-}
-
-function updateSelectedTimeslots() {
-    if (selectedTimeslots.length === 0) {
-        jQuery('#selected-timeslots').hide();
-        jQuery('#next-to-step-4').addClass('psu-btn-disabled').prop('disabled', true);
-        return;
+    function updateServiceInfo(service) {
+        const priceText = service.price > 0 ? 
+            Number(service.price).toLocaleString() + ' บาท/ชั่วโมง' : 'ฟรี';
+        
+        const html = `
+            <div class="psu-service-summary" style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="color: #2B3F6A; margin-bottom: 10px;">${service.name}</h4>
+                <p style="margin-bottom: 10px;">${service.description}</p>
+                <p><strong>ราคา:</strong> ${priceText}</p>
+                <p><strong>ระยะเวลา:</strong> ${service.duration} นาที</p>
+                ${service.payment_info ? `<p><strong>การชำระเงิน:</strong> ${service.payment_info}</p>` : ''}
+            </div>
+        `;
+        $('#selected-service-info').html(html);
     }
     
-    let html = '';
-    let totalPrice = 0;
+    function showStep(stepNumber) {
+        $('.psu-step').addClass('psu-step-hidden');
+        $('#step-' + stepNumber).removeClass('psu-step-hidden');
+        $('html, body').animate({
+            scrollTop: $('.psu-booking-container').offset().top
+        }, 500);
+    }
     
-    selectedTimeslots.forEach(function(slot) {
-        html += `<li>${slot.display} - ${Number(slot.price).toLocaleString()} บาท</li>`;
-        totalPrice += slot.price;
-    });
-    
-    jQuery('#selected-timeslots-list').html(html);
-    jQuery('#total-price').text(Number(totalPrice).toLocaleString());
-    jQuery('#selected-timeslots').show();
-    jQuery('#next-to-step-4').removeClass('psu-btn-disabled').prop('disabled', false);
-}
-
-function updateBookingSummary() {
-    const totalPrice = selectedTimeslots.reduce((sum, slot) => sum + slot.price, 0);
-    
-    let timeslotsHtml = '';
-    selectedTimeslots.forEach(function(slot) {
-        timeslotsHtml += `<li>${slot.display}</li>`;
-    });
-    
-    const html = `
-        <div class="psu-summary-item">
-            <strong>บริการ:</strong> ${selectedService.name}
-        </div>
-        <div class="psu-summary-item">
-            <strong>วันที่:</strong> ${new Date(selectedDate).toLocaleDateString('th-TH')}
-        </div>
-        <div class="psu-summary-item">
-            <strong>เวลา:</strong>
-            <ul>${timeslotsHtml}</ul>
-        </div>
-        <div class="psu-summary-item">
-            <strong>ราคารวม:</strong> ${Number(totalPrice).toLocaleString()} บาท
-        </div>
-        ${selectedService.payment_info ? `<div class="psu-summary-item"><strong>การชำระเงิน:</strong> ${selectedService.payment_info}</div>` : ''}
-    `;
-    
-    jQuery('#booking-summary-content').html(html);
-}
-
-function submitBooking() {
-    const formData = {
-        action: 'psu_submit_booking',
-        service_id: selectedService.id,
-        customer_name: jQuery('#customer_name').val(),
-        customer_email: jQuery('#customer_email').val(),
-        booking_date: selectedDate,
-        timeslots: selectedTimeslots,
-        additional_info: jQuery('#additional_info').val(),
-        nonce: psu_ajax.nonce
-    };
-    
-    // แสดง loading
-    jQuery('#submit-booking').prop('disabled', true).text('กำลังจอง...');
-    
-    jQuery.ajax({
-        url: psu_ajax.ajax_url,
-        type: 'POST',
-        data: formData,
-        success: function(response) {
-            if (response.success) {
-                showSuccessMessage(response.data);
-                psuGoToStep(5);
-            } else {
-                alert('เกิดข้อผิดพลาด: ' + response.data.message);
-                jQuery('#submit-booking').prop('disabled', false).text('<?php echo esc_js($texts['submit_booking']); ?>');
-            }
-        },
-        error: function() {
-            alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
-            jQuery('#submit-booking').prop('disabled', false).text('<?php echo esc_js($texts['submit_booking']); ?>');
-        }
-    });
-}
-
-function showSuccessMessage(data) {
-    const html = `
-        <p>การจองของคุณได้รับการยืนยันแล้ว</p>
-        <p>รหัสการจอง: ${data.booking_ids.join(', ')}</p>
-        <p>ราคารวม: ${Number(data.total_price).toLocaleString()} บาท</p>
-        <p>ท่านจะได้รับอีเมลยืนยันการจองในอีกสักครู่</p>
-    `;
-    jQuery('#success-details').html(html);
-}
-
-function psuGoToStep(step) {
-    jQuery('.psu-step').addClass('psu-step-hidden');
-    jQuery('#step-' + step).removeClass('psu-step-hidden');
-    currentStep = step;
-}
+    // Global function สำหรับใช้ใน template
+    window.psuGoToStep = window.psuGoToStep || showStep;
+});
 </script> 
