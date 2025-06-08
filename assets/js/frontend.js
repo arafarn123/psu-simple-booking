@@ -969,30 +969,56 @@
     }
 
     function submitBooking() {
+        console.log('=== PSU Booking: Starting submission ===');
+        console.log('Selected service:', selectedService);
+        console.log('Selected date:', selectedDate);
+        console.log('Selected timeslots:', selectedTimeslots);
+        
         if (!validateCustomFields()) {
             hideLoadingOverlay();
             showNotification('❌ กรุณากรอกข้อมูลให้ครบถ้วน', 'error');
             return;
         }
         
+        // เตรียมข้อมูล timeslots
+        const timeslotsForSubmission = selectedTimeslots.map(slot => ({
+            start: slot.start,
+            end: slot.end,
+            price: slot.price,
+            display: slot.display,
+            category: slot.category
+        }));
+        
+        console.log('Timeslots for submission:', timeslotsForSubmission);
+        const timeslotsJson = JSON.stringify(timeslotsForSubmission);
+        console.log('Timeslots JSON string:', timeslotsJson);
+        
         const formData = new FormData();
         formData.append('action', 'psu_submit_booking');
         formData.append('nonce', psu_ajax.nonce);
         formData.append('service_id', selectedService.id);
         formData.append('booking_date', selectedDate);
-        formData.append('timeslots', JSON.stringify(selectedTimeslots));
+        formData.append('timeslots', timeslotsJson);
         
         // เพิ่มข้อมูลจากฟอร์ม
         $('#psu-customer-form').serializeArray().forEach(field => {
+            console.log('Form field:', field.name, '=', field.value);
             formData.append(field.name, field.value);
         });
         
         // เพิ่มไฟล์ถ้ามี
         $('#psu-customer-form input[type="file"]').each(function() {
             if (this.files[0]) {
+                console.log('File field:', this.name, '=', this.files[0].name);
                 formData.append(this.name, this.files[0]);
             }
         });
+        
+        // Debug FormData contents
+        console.log('=== FormData Contents ===');
+        for (let pair of formData.entries()) {
+            console.log(pair[0] + ':', pair[1]);
+        }
         
         $.ajax({
             url: psu_ajax.ajax_url,
@@ -1000,19 +1026,33 @@
             data: formData,
             processData: false,
             contentType: false,
+            beforeSend: function() {
+                console.log('Sending AJAX request to:', psu_ajax.ajax_url);
+            },
             success: function(response) {
+                console.log('=== AJAX Response ===');
+                console.log('Full response:', response);
+                console.log('Success:', response.success);
+                console.log('Data:', response.data);
+                
                 hideLoadingOverlay();
                 if (response.success) {
                     clearFormDraft();
                     showSuccessMessage(response.data);
                     psuGoToStep(5);
                 } else {
+                    console.error('Booking failed:', response.data.message);
                     showNotification('❌ ' + (response.data.message || 'เกิดข้อผิดพลาดในการจอง'), 'error');
                 }
             },
-            error: function() {
+            error: function(xhr, status, error) {
+                console.error('=== AJAX Error ===');
+                console.error('Status:', status);
+                console.error('Error:', error);
+                console.error('Response:', xhr.responseText);
+                
                 hideLoadingOverlay();
-                showNotification('❌ เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
+                showNotification('❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + error, 'error');
             }
         });
     }

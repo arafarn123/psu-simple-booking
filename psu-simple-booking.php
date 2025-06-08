@@ -401,19 +401,127 @@ class PSU_Simple_Booking {
      * AJAX: ส่งการจอง
      */
     public function ajax_submit_booking() {
-        check_ajax_referer('psu_booking_nonce', 'nonce');
+        // Debug logging
+        error_log('PSU Booking: ajax_submit_booking called');
+        error_log('POST data: ' . print_r($_POST, true));
+        
+        try {
+            check_ajax_referer('psu_booking_nonce', 'nonce');
+        } catch (Exception $e) {
+            error_log('PSU Booking: Nonce verification failed - ' . $e->getMessage());
+            wp_send_json_error(array('message' => 'การตรวจสอบความปลอดภัยล้มเหลว'));
+            return;
+        }
+        
+        // ประมวลผล timeslots (อาจเป็น JSON string)
+        $timeslots = $_POST['timeslots'];
+        error_log('PSU Booking: Raw timeslots data: ' . print_r($timeslots, true));
+        error_log('PSU Booking: Timeslots data type: ' . gettype($timeslots));
+        error_log('PSU Booking: Timeslots string length: ' . strlen($timeslots));
+        
+        if (is_string($timeslots)) {
+            // ทำความสะอาด JSON string
+            $timeslots = trim($timeslots);
+            $timeslots = stripslashes($timeslots);
+            
+            // ตรวจสอบ encoding และแปลงเป็น UTF-8
+            if (!mb_check_encoding($timeslots, 'UTF-8')) {
+                $timeslots = mb_convert_encoding($timeslots, 'UTF-8');
+                error_log('PSU Booking: Converted encoding to UTF-8');
+            }
+            
+            // ลบ BOM ถ้ามี
+            $timeslots = preg_replace('/^\xEF\xBB\xBF/', '', $timeslots);
+            
+            // ลบ invisible characters
+            $timeslots = preg_replace('/[\x00-\x1F\x7F]/', '', $timeslots);
+            
+            error_log('PSU Booking: Cleaned JSON string: ' . $timeslots);
+            error_log('PSU Booking: Cleaned string length: ' . strlen($timeslots));
+            
+            // ลองใช้ regular expression เพื่อ validate JSON structure
+            if (!preg_match('/^\[.*\]$/', $timeslots)) {
+                error_log('PSU Booking: JSON structure validation failed');
+                wp_send_json_error(array('message' => 'รูปแบบ JSON ไม่ถูกต้อง'));
+                return;
+            }
+            
+            $timeslots = json_decode($timeslots, true);
+            $json_error = json_last_error();
+            error_log('PSU Booking: JSON decode result: ' . print_r($timeslots, true));
+            error_log('PSU Booking: JSON error code: ' . $json_error);
+            
+            if ($json_error !== JSON_ERROR_NONE) {
+                $error_msg = json_last_error_msg();
+                error_log('PSU Booking: JSON decode error: ' . $error_msg);
+                
+                // ลอง fallback parsing
+                error_log('PSU Booking: Attempting manual parsing fallback');
+                $timeslots = $this->manual_parse_timeslots($_POST['timeslots']);
+                
+                if ($timeslots === false) {
+                    wp_send_json_error(array('message' => 'ไม่สามารถประมวลผลข้อมูลช่วงเวลาได้: ' . $error_msg));
+                    return;
+                } else {
+                    error_log('PSU Booking: Manual parsing succeeded');
+                }
+            }
+        } elseif (is_array($timeslots)) {
+            error_log('PSU Booking: Timeslots is already an array');
+        } else {
+            error_log('PSU Booking: Unexpected timeslots data type: ' . gettype($timeslots));
+            wp_send_json_error(array('message' => 'รูปแบบข้อมูลช่วงเวลาไม่ถูกต้อง'));
+            return;
+        }
+        
+        // ประมวลผล custom fields
+        $custom_fields = array();
+        foreach ($_POST as $key => $value) {
+            if (strpos($key, 'custom_field_') === 0) {
+                $custom_fields[$key] = sanitize_text_field($value);
+            }
+        }
         
         $data = array(
             'service_id' => intval($_POST['service_id']),
             'customer_name' => sanitize_text_field($_POST['customer_name']),
             'customer_email' => sanitize_email($_POST['customer_email']),
             'booking_date' => sanitize_text_field($_POST['booking_date']),
-            'timeslots' => $_POST['timeslots'], // array of selected timeslots
+            'timeslots' => $timeslots,
             'additional_info' => sanitize_textarea_field($_POST['additional_info']),
-            'custom_fields' => isset($_POST['custom_fields']) ? $_POST['custom_fields'] : array()
+            'custom_fields' => $custom_fields
         );
         
+        // ตรวจสอบโครงสร้างข้อมูล timeslots
+        if (!is_array($timeslots) || empty($timeslots)) {
+            error_log('PSU Booking: Invalid timeslots - not array or empty');
+            wp_send_json_error(array('message' => 'กรุณาเลือกช่วงเวลาสำหรับการจอง'));
+            return;
+        }
+        
+        // ตรวจสอบแต่ละ timeslot
+        foreach ($timeslots as $index => $slot) {
+            if (!is_array($slot)) {
+                error_log('PSU Booking: Invalid timeslot at index ' . $index . ' - not array');
+                wp_send_json_error(array('message' => 'รูปแบบข้อมูลช่วงเวลาไม่ถูกต้อง'));
+                return;
+            }
+            
+            $required_fields = ['start', 'end'];
+            foreach ($required_fields as $field) {
+                if (!isset($slot[$field]) || empty($slot[$field])) {
+                    error_log('PSU Booking: Missing required field in timeslot: ' . $field);
+                    wp_send_json_error(array('message' => 'ข้อมูลช่วงเวลาไม่ครบถ้วน'));
+                    return;
+                }
+            }
+        }
+        
+        error_log('PSU Booking: Processed data: ' . print_r($data, true));
+        
         $result = $this->create_booking($data);
+        
+        error_log('PSU Booking: Create booking result: ' . print_r($result, true));
         
         if ($result['success']) {
             wp_send_json_success($result);
@@ -428,9 +536,19 @@ class PSU_Simple_Booking {
     public function create_booking($data) {
         global $wpdb;
         
+        error_log('PSU Booking: create_booking called with data: ' . print_r($data, true));
+        
         // ตรวจสอบข้อมูล
         if (empty($data['service_id']) || empty($data['customer_name']) || empty($data['customer_email']) || empty($data['booking_date']) || empty($data['timeslots'])) {
-            return array('success' => false, 'message' => 'กรุณากรอกข้อมูลให้ครบถ้วน');
+            $missing = array();
+            if (empty($data['service_id'])) $missing[] = 'service_id';
+            if (empty($data['customer_name'])) $missing[] = 'customer_name';
+            if (empty($data['customer_email'])) $missing[] = 'customer_email';
+            if (empty($data['booking_date'])) $missing[] = 'booking_date';
+            if (empty($data['timeslots'])) $missing[] = 'timeslots';
+            
+            error_log('PSU Booking: Missing required fields: ' . implode(', ', $missing));
+            return array('success' => false, 'message' => 'กรุณากรอกข้อมูลให้ครบถ้วน (ขาด: ' . implode(', ', $missing) . ')');
         }
         
         // ดึงข้อมูลบริการ
@@ -439,7 +557,10 @@ class PSU_Simple_Booking {
             $data['service_id']
         ));
         
+        error_log('PSU Booking: Service query result: ' . print_r($service, true));
+        
         if (!$service) {
+            error_log('PSU Booking: Service not found for ID: ' . $data['service_id']);
             return array('success' => false, 'message' => 'ไม่พบบริการที่เลือก');
         }
         
@@ -447,12 +568,19 @@ class PSU_Simple_Booking {
         $booking_ids = array();
         $total_price = 0;
         
-        foreach ($data['timeslots'] as $timeslot) {
+        error_log('PSU Booking: Processing ' . count($data['timeslots']) . ' timeslots');
+        
+        foreach ($data['timeslots'] as $index => $timeslot) {
+            error_log('PSU Booking: Processing timeslot ' . $index . ': ' . print_r($timeslot, true));
+            
             $start_time = sanitize_text_field($timeslot['start']);
             $end_time = sanitize_text_field($timeslot['end']);
             
             // ตรวจสอบว่า timeslot ยังว่างอยู่
-            if (!$this->is_timeslot_available($data['service_id'], $data['booking_date'], $start_time, $end_time)) {
+            $is_available = $this->is_timeslot_available($data['service_id'], $data['booking_date'], $start_time, $end_time);
+            error_log('PSU Booking: Timeslot availability check: ' . ($is_available ? 'AVAILABLE' : 'NOT AVAILABLE'));
+            
+            if (!$is_available) {
                 return array('success' => false, 'message' => 'ช่วงเวลา ' . $start_time . '-' . $end_time . ' ไม่ว่างแล้ว');
             }
             
@@ -460,6 +588,8 @@ class PSU_Simple_Booking {
             $duration_hours = (strtotime($end_time) - strtotime($start_time)) / 3600;
             $slot_price = $service->price * $duration_hours;
             $total_price += $slot_price;
+            
+            error_log('PSU Booking: Calculated price for slot: ' . $slot_price . ' (duration: ' . $duration_hours . ' hours)');
             
             // สร้างการจอง
             $booking_data = array(
@@ -476,14 +606,21 @@ class PSU_Simple_Booking {
                 'form_data' => json_encode($data)
             );
             
+            error_log('PSU Booking: Inserting booking data: ' . print_r($booking_data, true));
+            
             $result = $wpdb->insert($wpdb->prefix . 'psu_bookings', $booking_data);
             
             if ($result) {
                 $booking_id = $wpdb->insert_id;
                 $booking_ids[] = $booking_id;
+                error_log('PSU Booking: Successfully created booking ID: ' . $booking_id);
                 
                 // ส่ง hook สำหรับการจองใหม่
                 do_action('psu_booking_created', $booking_id, $booking_data);
+            } else {
+                $error = $wpdb->last_error;
+                error_log('PSU Booking: Database insert failed: ' . $error);
+                return array('success' => false, 'message' => 'เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' . $error);
             }
         }
         
@@ -903,6 +1040,55 @@ class PSU_Simple_Booking {
             array('setting_key' => $key, 'setting_value' => $value),
             array('%s', '%s')
         );
+    }
+    
+    /**
+     * Manual parsing สำหรับ timeslots เป็น fallback
+     */
+    private function manual_parse_timeslots($json_string) {
+        error_log('PSU Booking: Manual parsing input: ' . $json_string);
+        
+        // ลองใช้ regex เพื่อดึงข้อมูลหลัก
+        $pattern = '/\{"start":"([^"]+)","end":"([^"]+)","price":([^,}]+),"display":"([^"]+)","category":"([^"]+)"\}/';
+        
+        if (preg_match_all($pattern, $json_string, $matches, PREG_SET_ORDER)) {
+            $timeslots = array();
+            
+            foreach ($matches as $match) {
+                $timeslots[] = array(
+                    'start' => $match[1],
+                    'end' => $match[2],
+                    'price' => floatval($match[3]),
+                    'display' => $match[4],
+                    'category' => $match[5]
+                );
+            }
+            
+            error_log('PSU Booking: Manual parsing result: ' . print_r($timeslots, true));
+            return $timeslots;
+        }
+        
+        // ลอง pattern ที่ง่ายกว่า
+        $simple_pattern = '/start":"([^"]+)".*?end":"([^"]+)"/';
+        if (preg_match_all($simple_pattern, $json_string, $simple_matches, PREG_SET_ORDER)) {
+            $timeslots = array();
+            
+            foreach ($simple_matches as $match) {
+                $timeslots[] = array(
+                    'start' => $match[1],
+                    'end' => $match[2],
+                    'price' => 0,
+                    'display' => $match[1] . ' - ' . $match[2],
+                    'category' => 'รายชั่วโมง'
+                );
+            }
+            
+            error_log('PSU Booking: Simple manual parsing result: ' . print_r($timeslots, true));
+            return $timeslots;
+        }
+        
+        error_log('PSU Booking: Manual parsing failed');
+        return false;
     }
 }
 
