@@ -107,7 +107,7 @@ $default_email_notifications = array(
 
 $default_general_settings = array(
     'booking_advance_days' => 365,
-    'max_bookings_per_user' => 10,
+    'max_bookings_per_user' => 0,
     'require_approval' => true,
     'allow_cancellation' => true,
     'cancellation_hours' => 24,
@@ -152,7 +152,7 @@ $general_settings = array_merge($default_general_settings, $general_settings);
                         <th scope="row"><label for="max_bookings_per_user">จำนวนการจองสูงสุดต่อผู้ใช้</label></th>
                         <td>
                             <input type="number" id="max_bookings_per_user" name="general_settings[max_bookings_per_user]" 
-                                   value="<?php echo esc_attr($general_settings['max_bookings_per_user']); ?>" min="1" max="100" class="small-text">
+                                   value="<?php echo esc_attr($general_settings['max_bookings_per_user']); ?>" min="0" max="100" class="small-text">
                             <span class="description">การจอง (0 = ไม่จำกัด)</span>
                         </td>
                     </tr>

@@ -388,13 +388,63 @@
     }
 
     function formatThaiDate(date) {
-        const options = { 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric', 
-            weekday: 'long' 
-        };
-        return date.toLocaleDateString('th-TH', options);
+        // ใช้รูปแบบวันที่ของ WordPress (dd/mm/yyyy)
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        
+        const thaiDays = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+        const thaiMonths = [
+            'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+            'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+        ];
+        
+        const dayName = thaiDays[date.getDay()];
+        const monthName = thaiMonths[date.getMonth()];
+        
+        return `${dayName}ที่ ${day}/${month}/${year} (${day} ${monthName} ${year})`;
+    }
+    
+    /**
+     * แปลงรูปแบบวันที่สำหรับส่งไปยังเซิร์ฟเวอร์ (yyyy-mm-dd)
+     */
+    function convertDateForServer(dateString) {
+        if (!dateString) return '';
+        
+        // ถ้าเป็นรูปแบบ dd/mm/yyyy
+        if (dateString.includes('/')) {
+            const parts = dateString.split('/');
+            if (parts.length === 3) {
+                const day = parts[0].padStart(2, '0');
+                const month = parts[1].padStart(2, '0');
+                const year = parts[2];
+                return `${year}-${month}-${day}`;
+            }
+        }
+        
+        // ถ้าเป็นรูปแบบ yyyy-mm-dd แล้ว
+        return dateString;
+    }
+    
+    /**
+     * แปลงรูปแบบวันที่สำหรับแสดงผล (dd/mm/yyyy)
+     */
+    function convertDateForDisplay(dateString) {
+        if (!dateString) return '';
+        
+        // ถ้าเป็นรูปแบบ yyyy-mm-dd
+        if (dateString.includes('-')) {
+            const parts = dateString.split('-');
+            if (parts.length === 3) {
+                const year = parts[0];
+                const month = parts[1];
+                const day = parts[2];
+                return `${day}/${month}/${year}`;
+            }
+        }
+        
+        // ถ้าเป็นรูปแบบ dd/mm/yyyy แล้ว
+        return dateString;
     }
 
     // Export functions to global scope

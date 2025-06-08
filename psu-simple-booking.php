@@ -1,11 +1,13 @@
 <?php
 /**
  * Plugin Name: PSU Simple Booking
- * Description: ระบบจองแบบเรียบง่าย สำหรับ WordPress ใช้งานง่าย รองรับการจองทุกประเภท
- * Version: 2.0
- * Author: PSU Team
+ * Description: ระบบการจอง ใช้ภายใน PSU
+ * Version: 1.0
+ * Author: DIIS PSU
  * Text Domain: psu-simple-booking
  * Domain Path: /languages
+ * Requires PHP: 8.0
+ * Author URI: https://diis.psu.ac.th/
  */
 
 // ป้องกันการเข้าถึงโดยตรง
@@ -64,7 +66,6 @@ class PSU_Simple_Booking {
      */
     public function activate() {
         $this->create_tables();
-        $this->insert_default_data();
         flush_rewrite_rules();
     }
     
@@ -95,7 +96,7 @@ class PSU_Simple_Booking {
             break_start_time time DEFAULT '12:00:00',
             break_end_time time DEFAULT '13:00:00',
             working_days varchar(20) DEFAULT '1,2,3,4,5' COMMENT 'comma separated days (0=Sunday)',
-            timeslot_type varchar(20) DEFAULT 'hourly' COMMENT 'hourly, morning_afternoon, full_day',
+            timeslot_type varchar(50) DEFAULT 'hourly' COMMENT 'hourly, morning_afternoon, full_day - can be multiple',
             timeslot_duration int(11) DEFAULT 60 COMMENT 'minutes per slot',
             auto_approve tinyint(1) DEFAULT 0,
             payment_info text,
@@ -103,7 +104,11 @@ class PSU_Simple_Booking {
             manager_user_id int(11),
             status tinyint(1) DEFAULT 1,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (id)
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY name (name),
+            KEY category (category),
+            KEY status (status)
         ) $charset_collate;";
         
         // ตาราง Bookings
@@ -114,21 +119,25 @@ class PSU_Simple_Booking {
             user_id int(11),
             customer_name varchar(255) NOT NULL,
             customer_email varchar(255) NOT NULL,
+            customer_phone varchar(20),
             booking_date date NOT NULL,
             start_time time NOT NULL,
             end_time time NOT NULL,
             total_price decimal(10,2) DEFAULT 0.00,
-            status varchar(20) DEFAULT 'pending' COMMENT 'pending, approved, rejected',
+            status enum('pending','approved','rejected','cancelled') DEFAULT 'pending',
             rejection_reason text,
             additional_info text,
-            form_data text COMMENT 'JSON format for custom form fields',
+            form_data longtext COMMENT 'JSON format for custom form fields',
+            admin_notes text,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY service_id (service_id),
             KEY user_id (user_id),
             KEY booking_date (booking_date),
-            KEY status (status)
+            KEY status (status),
+            KEY customer_email (customer_email),
+            FOREIGN KEY (service_id) REFERENCES $table_services(id) ON DELETE CASCADE
         ) $charset_collate;";
         
         // ตาราง Settings
@@ -137,85 +146,45 @@ class PSU_Simple_Booking {
             id int(11) NOT NULL AUTO_INCREMENT,
             setting_key varchar(100) NOT NULL,
             setting_value longtext,
+            setting_type varchar(20) DEFAULT 'string' COMMENT 'string, json, int, bool',
+            description text,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             UNIQUE KEY setting_key (setting_key)
+        ) $charset_collate;";
+        
+        // ตาราง Form Fields (สำหรับ custom form fields)
+        $table_form_fields = $wpdb->prefix . 'psu_form_fields';
+        $sql_form_fields = "CREATE TABLE $table_form_fields (
+            id int(11) NOT NULL AUTO_INCREMENT,
+            service_id int(11) DEFAULT NULL COMMENT 'NULL for global fields',
+            field_name varchar(100) NOT NULL,
+            field_label varchar(255) NOT NULL,
+            field_type enum('text','textarea','email','number','tel','select','radio','checkbox','date','time','file') NOT NULL,
+            field_options longtext COMMENT 'JSON for select/radio/checkbox options',
+            is_required tinyint(1) DEFAULT 0,
+            field_order int(11) DEFAULT 0,
+            placeholder varchar(255),
+            validation_rules longtext COMMENT 'JSON for validation rules',
+            status tinyint(1) DEFAULT 1,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY service_id (service_id),
+            KEY field_order (field_order),
+            KEY status (status),
+            FOREIGN KEY (service_id) REFERENCES $table_services(id) ON DELETE CASCADE
         ) $charset_collate;";
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql_services);
         dbDelta($sql_bookings);
         dbDelta($sql_settings);
-    }
-    
-    /**
-     * เพิ่มข้อมูลเริ่มต้น
-     */
-    public function insert_default_data() {
-        global $wpdb;
+        dbDelta($sql_form_fields);
         
-        // ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือไม่
-        $existing = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}psu_services");
-        if ($existing > 0) return;
-        
-        // เพิ่มการตั้งค่าเริ่มต้น
-        $default_settings = array(
-            'frontend_texts' => json_encode(array(
-                'select_service' => 'เลือกบริการ',
-                'select_date' => 'เลือกวันที่',
-                'select_time' => 'เลือกเวลา',
-                'customer_info' => 'ข้อมูลผู้จอง',
-                'name' => 'ชื่อ',
-                'email' => 'อีเมล',
-                'additional_info' => 'รายละเอียดเพิ่มเติม',
-                'submit_booking' => 'ยืนยันการจอง',
-                'booking_success' => 'จองสำเร็จแล้ว!',
-                'next' => 'ถัดไป',
-                'previous' => 'ก่อนหน้า',
-                'book_now' => 'จองเลย'
-            )),
-            'email_notifications' => json_encode(array(
-                'user_booking_created' => array(
-                    'enabled' => true,
-                    'subject' => 'ยืนยันการจอง - {service_name}',
-                    'message' => 'สวัสดีครับ/ค่ะ {customer_name}\n\nขอบคุณสำหรับการจอง {service_name}\nวันที่: {booking_date}\nเวลา: {start_time} - {end_time}\n\nสถานะการจอง: {status}'
-                ),
-                'admin_new_booking' => array(
-                    'enabled' => true,
-                    'subject' => 'มีการจองใหม่ - {service_name}',
-                    'message' => 'มีการจองใหม่เข้ามาในระบบ\n\nบริการ: {service_name}\nผู้จอง: {customer_name}\nวันที่: {booking_date}\nเวลา: {start_time} - {end_time}'
-                )
-            ))
-        );
-        
-        foreach ($default_settings as $key => $value) {
-            $wpdb->replace(
-                $wpdb->prefix . 'psu_settings',
-                array('setting_key' => $key, 'setting_value' => $value),
-                array('%s', '%s')
-            );
-        }
-        
-        // เพิ่มบริการตัวอย่าง
-        $sample_service = array(
-            'name' => 'ห้องประชุม A',
-            'description' => 'ห้องประชุมขนาดกลาง รองรับ 20 คน พร้อมอุปกรณ์ AV',
-            'category' => 'ห้องประชุม',
-            'price' => 500.00,
-            'duration' => 60,
-            'available_start_time' => '08:00:00',
-            'available_end_time' => '18:00:00',
-            'break_start_time' => '12:00:00',
-            'break_end_time' => '13:00:00',
-            'working_days' => '1,2,3,4,5',
-            'timeslot_type' => 'hourly',
-            'timeslot_duration' => 60,
-            'auto_approve' => 0,
-            'payment_info' => 'โอนเงินผ่านบัญชี xxx-x-xxxxx-x พร้อมแนบสลิป',
-            'manager_name' => 'ผู้ดูแลระบบ',
-            'status' => 1
-        );
-        
-        $wpdb->insert($wpdb->prefix . 'psu_services', $sample_service);
+        // อัพเดทเวอร์ชั่น database
+        update_option('psu_booking_db_version', '2.0');
     }
     
     /**
@@ -275,6 +244,35 @@ class PSU_Simple_Booking {
             'psu-booking-settings',
             array($this, 'admin_settings')
         );
+        
+        add_submenu_page(
+            'psu-booking',
+            'ฟิลด์ฟอร์ม',
+            'ฟิลด์ฟอร์ม',
+            'manage_options',
+            'psu-booking-form-fields',
+            array($this, 'admin_form_fields')
+        );
+        
+        // Migration & Check tool
+        add_submenu_page(
+            'psu-booking',
+            'Migration Check',
+            'Migration Check',
+            'manage_options',
+            'psu-booking-migration',
+            array($this, 'admin_migration_check')
+        );
+        
+        // Debug menu (เฉพาะสำหรับแก้ไขปัญหา)
+        add_submenu_page(
+            'psu-booking',
+            'Debug',
+            'Debug',
+            'manage_options',
+            'psu-booking-debug',
+            array($this, 'admin_debug')
+        );
     }
     
     /**
@@ -295,8 +293,11 @@ class PSU_Simple_Booking {
      */
     public function admin_enqueue_scripts($hook) {
         if (strpos($hook, 'psu-booking') !== false) {
+            // โหลด Media Library
+            wp_enqueue_media();
+            
             wp_enqueue_style('psu-booking-admin-style', PSU_BOOKING_PLUGIN_URL . 'assets/css/admin.css', array(), PSU_BOOKING_VERSION);
-            wp_enqueue_script('psu-booking-admin-script', PSU_BOOKING_PLUGIN_URL . 'assets/js/admin.js', array('jquery'), PSU_BOOKING_VERSION, true);
+            wp_enqueue_script('psu-booking-admin-script', PSU_BOOKING_PLUGIN_URL . 'assets/js/admin-simple.js', array('jquery'), PSU_BOOKING_VERSION, true);
             
             wp_localize_script('psu-booking-admin-script', 'psu_admin_ajax', array(
                 'ajax_url' => admin_url('admin-ajax.php'),
@@ -368,6 +369,24 @@ class PSU_Simple_Booking {
     public function admin_settings() { 
         if (file_exists(PSU_BOOKING_PLUGIN_PATH . 'admin/settings.php')) {
             include PSU_BOOKING_PLUGIN_PATH . 'admin/settings.php';
+        }
+    }
+    
+    public function admin_form_fields() { 
+        if (file_exists(PSU_BOOKING_PLUGIN_PATH . 'admin/form-fields.php')) {
+            include PSU_BOOKING_PLUGIN_PATH . 'admin/form-fields.php';
+        }
+    }
+    
+    public function admin_migration_check() { 
+        if (file_exists(PSU_BOOKING_PLUGIN_PATH . 'admin/migration-check.php')) {
+            include PSU_BOOKING_PLUGIN_PATH . 'admin/migration-check.php';
+        }
+    }
+    
+    public function admin_debug() { 
+        if (file_exists(PSU_BOOKING_PLUGIN_PATH . 'admin/debug-service.php')) {
+            include PSU_BOOKING_PLUGIN_PATH . 'admin/debug-service.php';
         }
     }
     
@@ -552,19 +571,23 @@ class PSU_Simple_Booking {
             return array();
         }
         
-        // สร้าง timeslots ตามประเภท
+        // สร้าง timeslots ตามประเภท (รองรับหลายประเภท)
         $timeslots = array();
+        $types = explode(',', $service->timeslot_type);
         
-        switch ($service->timeslot_type) {
-            case 'hourly':
-                $timeslots = $this->generate_hourly_timeslots($service, $date);
-                break;
-            case 'morning_afternoon':
-                $timeslots = $this->generate_morning_afternoon_timeslots($service, $date);
-                break;
-            case 'full_day':
-                $timeslots = $this->generate_full_day_timeslots($service, $date);
-                break;
+        foreach ($types as $type) {
+            $type = trim($type);
+            switch ($type) {
+                case 'hourly':
+                    $timeslots = array_merge($timeslots, $this->generate_hourly_timeslots($service, $date));
+                    break;
+                case 'morning_afternoon':
+                    $timeslots = array_merge($timeslots, $this->generate_morning_afternoon_timeslots($service, $date));
+                    break;
+                case 'full_day':
+                    $timeslots = array_merge($timeslots, $this->generate_full_day_timeslots($service, $date));
+                    break;
+            }
         }
         
         // กรองเฉพาะที่ว่าง

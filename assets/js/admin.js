@@ -59,6 +59,8 @@ jQuery(document).ready(function($) {
             // รีเซ็ตฟอร์มหากไม่ใช่การแก้ไข
             if (!$('input[name="service_id"]').length) {
                 form.find('form')[0].reset();
+                // รีเซ็ต image preview
+                $('#image-preview').empty();
             }
         } else {
             form.show();
@@ -66,10 +68,28 @@ jQuery(document).ready(function($) {
         }
     };
 
+    // ปิด form submission handler ชั่วคราวเพื่อแก้ปัญหา
+    // $(document).on('submit', '.psu-service-form', function(e) {
+    //     console.log('🚀 Service form submitted!');
+    //     console.log('Form data:', $(this).serialize());
+        
+    //     // แสดง loading บนปุ่ม submit
+    //     const submitBtn = $(this).find('button[type="submit"]');
+    //     submitBtn.prop('disabled', true).text('กำลังบันทึก...');
+        
+    //     // อนุญาตให้ form submit ไปยัง PHP
+    //     return true;
+    // });
+    
+    // อนุญาตให้ form submit ปกติ
+    console.log('📝 Admin.js loaded - forms will work normally');
+
     // แสดง/ซ่อนฟิลด์ timeslot duration ตามประเภทการจอง
-    $(document).on('change', '#timeslot_type', function() {
+    $(document).on('change', 'input[name="timeslot_type[]"]', function() {
         const durationRow = $('#timeslot_duration_row');
-        if ($(this).val() === 'hourly') {
+        const hourlyChecked = $('input[name="timeslot_type[]"][value="hourly"]').is(':checked');
+        
+        if (hourlyChecked) {
             durationRow.show();
         } else {
             durationRow.hide();
@@ -77,9 +97,9 @@ jQuery(document).ready(function($) {
     });
 
     // เริ่มต้นการแสดงฟิลด์ duration
-    if ($('#timeslot_type').length) {
-        $('#timeslot_type').trigger('change');
-    }
+    $(document).ready(function() {
+        $('input[name="timeslot_type[]"][value="hourly"]').trigger('change');
+    });
 
     // การลบบริการ
     $(document).on('click', '.delete-service', function(e) {
@@ -581,4 +601,490 @@ jQuery(document).ready(function($) {
     });
 
     console.log('PSU Simple Booking Admin JS loaded successfully');
+
+    // Tab switching functionality
+    $('.psu-nav-tab').on('click', function(e) {
+        e.preventDefault();
+        
+        var target = $(this).data('tab');
+        
+        // Remove active class from all tabs and contents
+        $('.psu-nav-tab').removeClass('nav-tab-active');
+        $('.psu-tab-content').removeClass('active');
+        
+        // Add active class to clicked tab
+        $(this).addClass('nav-tab-active');
+        
+        // Show target content
+        $('#' + target).addClass('active');
+        
+        // Update URL hash
+        window.location.hash = target;
+    });
+    
+    // Initialize tabs from URL hash
+    if (window.location.hash) {
+        var activeTab = window.location.hash.substring(1);
+        $('.psu-nav-tab[data-tab="' + activeTab + '"]').trigger('click');
+    } else {
+        $('.psu-nav-tab:first').trigger('click');
+    }
+    
+    // Booking status quick update
+    $('.psu-quick-status').on('click', function(e) {
+        e.preventDefault();
+        
+        var bookingId = $(this).data('booking-id');
+        var newStatus = $(this).data('status');
+        var row = $(this).closest('tr');
+        
+        if (confirm('คุณต้องการเปลี่ยนสถานะการจองนี้หรือไม่?')) {
+            $.ajax({
+                url: psu_admin_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'psu_update_booking_status',
+                    booking_id: bookingId,
+                    status: newStatus,
+                    nonce: psu_admin_ajax.nonce
+                },
+                beforeSend: function() {
+                    row.addClass('psu-updating');
+                },
+                success: function(response) {
+                    if (response.success) {
+                        location.reload();
+                    } else {
+                        alert('เกิดข้อผิดพลาด: ' + response.data.message);
+                    }
+                },
+                error: function() {
+                    alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+                },
+                complete: function() {
+                    row.removeClass('psu-updating');
+                }
+            });
+        }
+    });
+    
+    // Bulk actions
+    $('#doaction').on('click', function(e) {
+        var action = $('#bulk-action-selector-top').val();
+        var selected = $('.psu-checkbox:checked');
+        
+        if (action === '-1') {
+            alert('กรุณาเลือกการดำเนินการ');
+            e.preventDefault();
+            return;
+        }
+        
+        if (selected.length === 0) {
+            alert('กรุณาเลือกรายการที่ต้องการดำเนินการ');
+            e.preventDefault();
+            return;
+        }
+        
+        if (!confirm('คุณต้องการดำเนินการกับรายการที่เลือกหรือไม่?')) {
+            e.preventDefault();
+            return;
+        }
+    });
+    
+    // Select all checkboxes
+    $('#cb-select-all-1').on('change', function() {
+        $('.psu-checkbox').prop('checked', $(this).is(':checked'));
+    });
+    
+    // Modal functionality
+    $('.psu-modal-trigger').on('click', function(e) {
+        e.preventDefault();
+        var modalId = $(this).data('modal');
+        $('#' + modalId).fadeIn();
+    });
+    
+    $('.psu-modal-close, .psu-modal-overlay').on('click', function() {
+        $('.psu-modal').fadeOut();
+    });
+    
+    // Form validation
+    $('.psu-form').on('submit', function(e) {
+        var form = $(this);
+        var isValid = true;
+        
+        // Check required fields
+        form.find('[required]').each(function() {
+            if (!$(this).val().trim()) {
+                $(this).addClass('error');
+                isValid = false;
+            } else {
+                $(this).removeClass('error');
+            }
+        });
+        
+        if (!isValid) {
+            alert('กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน');
+            e.preventDefault();
+        }
+    });
+    
+    // Real-time search/filter
+    $('#service-search').on('keyup', function() {
+        var searchTerm = $(this).val().toLowerCase();
+        
+        $('.psu-service-card').each(function() {
+            var serviceName = $(this).find('h3').text().toLowerCase();
+            var serviceCategory = $(this).find('.psu-service-category').text().toLowerCase();
+            
+            if (serviceName.includes(searchTerm) || serviceCategory.includes(searchTerm)) {
+                $(this).show();
+            } else {
+                $(this).hide();
+            }
+        });
+    });
+    
+    // Date range picker initialization
+    if ($.fn.datepicker) {
+        $('.psu-datepicker').datepicker({
+            dateFormat: 'dd/mm/yy',
+            changeMonth: true,
+            changeYear: true
+        });
+    }
+    
+    // Chart initialization (if Chart.js is available)
+    if (typeof Chart !== 'undefined') {
+        initializeCharts();
+    }
+    
+    // Copy to clipboard functionality
+    $('.psu-copy-btn').on('click', function() {
+        var text = $(this).data('copy');
+        
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(function() {
+                showNotification('คัดลอกแล้ว!', 'success');
+            });
+        } else {
+            // Fallback for older browsers
+            var textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            showNotification('คัดลอกแล้ว!', 'success');
+        }
+    });
+    
+    // Auto-save functionality
+    $('.psu-auto-save').on('input', debounce(function() {
+        var field = $(this);
+        var data = {
+            action: 'psu_auto_save',
+            key: field.data('key'),
+            value: field.val(),
+            nonce: psu_admin_ajax.nonce
+        };
+        
+        $.post(psu_admin_ajax.ajax_url, data, function(response) {
+            if (response.success) {
+                field.addClass('saved');
+                setTimeout(function() {
+                    field.removeClass('saved');
+                }, 1000);
+            }
+        });
+    }, 1000));
+    
+    // Loading states
+    $('.button[type="submit"]').on('click', function() {
+        var btn = $(this);
+        var originalText = btn.text();
+        
+        btn.text('กำลังประมวลผล...').prop('disabled', true);
+        
+        setTimeout(function() {
+            btn.text(originalText).prop('disabled', false);
+        }, 3000);
+    });
+    
+    // Initialize sortable tables
+    if ($.fn.sortable) {
+        $('.psu-sortable tbody').sortable({
+            handle: '.psu-sort-handle',
+            placeholder: 'psu-sort-placeholder',
+            update: function(event, ui) {
+                var order = $(this).sortable('toArray', {attribute: 'data-id'});
+                // Save new order via AJAX
+                $.post(psu_admin_ajax.ajax_url, {
+                    action: 'psu_update_order',
+                    order: order,
+                    nonce: psu_admin_ajax.nonce
+                });
+            }
+        });
+    }
 });
+
+// Service Form Toggle Function
+function toggleServiceForm() {
+    var form = document.getElementById('service-form');
+    var list = document.getElementById('services-list');
+    
+    if (form.style.display === 'none' || !form.style.display) {
+        form.style.display = 'block';
+        list.style.display = 'none';
+        window.scrollTo(0, 0);
+    } else {
+        form.style.display = 'none';
+        list.style.display = 'block';
+        
+        // Reset form if it's not editing
+        if (!document.querySelector('input[name="service_id"]')) {
+            document.querySelector('.psu-service-form').reset();
+            
+            // Clear image preview
+            const preview = document.getElementById('image-preview');
+            if (preview) {
+                preview.innerHTML = '';
+            }
+        }
+    }
+}
+
+// Custom Form Fields Management
+function addCustomField() {
+    var container = document.getElementById('custom-fields-container');
+    var fieldCount = container.children.length;
+    
+    var fieldHtml = `
+        <div class="psu-custom-field" data-field-id="${fieldCount}">
+            <div class="psu-field-header">
+                <input type="text" name="custom_fields[${fieldCount}][label]" placeholder="ป้ายกำกับฟิลด์" class="psu-input" required>
+                <select name="custom_fields[${fieldCount}][type]" class="psu-select" onchange="toggleFieldOptions(this)">
+                    <option value="text">ข้อความ</option>
+                    <option value="textarea">ข้อความแบบยาว</option>
+                    <option value="email">อีเมล</option>
+                    <option value="number">ตัวเลข</option>
+                    <option value="tel">เบอร์โทรศัพท์</option>
+                    <option value="select">เลือกจากรายการ</option>
+                    <option value="radio">เลือกหนึ่งตัวเลือก</option>
+                    <option value="checkbox">เลือกได้หลายตัวเลือก</option>
+                    <option value="date">วันที่</option>
+                    <option value="time">เวลา</option>
+                    <option value="file">อัปโหลดไฟล์</option>
+                </select>
+                <button type="button" onclick="removeCustomField(this)" class="button button-small psu-remove-field">ลบ</button>
+            </div>
+            
+            <div class="psu-field-options">
+                <div class="psu-field-settings">
+                    <label>
+                        <input type="checkbox" name="custom_fields[${fieldCount}][required]" value="1">
+                        จำเป็นต้องกรอก
+                    </label>
+                    <input type="text" name="custom_fields[${fieldCount}][placeholder]" placeholder="ข้อความตัวอย่าง" class="psu-input">
+                    <input type="text" name="custom_fields[${fieldCount}][description]" placeholder="คำอธิบายเพิ่มเติม" class="psu-input">
+                </div>
+                
+                <div class="psu-field-options-list" style="display: none;">
+                    <label>ตัวเลือก (แยกด้วยบรรทัดใหม่):</label>
+                    <textarea name="custom_fields[${fieldCount}][options]" rows="3" class="psu-textarea" placeholder="ตัวเลือก 1&#10;ตัวเลือก 2&#10;ตัวเลือก 3"></textarea>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    container.insertAdjacentHTML('beforeend', fieldHtml);
+}
+
+function removeCustomField(button) {
+    if (confirm('คุณต้องการลบฟิลด์นี้หรือไม่?')) {
+        button.closest('.psu-custom-field').remove();
+        reorderCustomFields();
+    }
+}
+
+function toggleFieldOptions(select) {
+    var fieldContainer = select.closest('.psu-custom-field');
+    var optionsList = fieldContainer.querySelector('.psu-field-options-list');
+    
+    if (['select', 'radio', 'checkbox'].includes(select.value)) {
+        optionsList.style.display = 'block';
+    } else {
+        optionsList.style.display = 'none';
+    }
+}
+
+function reorderCustomFields() {
+    var fields = document.querySelectorAll('.psu-custom-field');
+    fields.forEach(function(field, index) {
+        field.setAttribute('data-field-id', index);
+        
+        // Update input names
+        var inputs = field.querySelectorAll('input, select, textarea');
+        inputs.forEach(function(input) {
+            var name = input.getAttribute('name');
+            if (name && name.includes('custom_fields[')) {
+                var newName = name.replace(/custom_fields\[\d+\]/, 'custom_fields[' + index + ']');
+                input.setAttribute('name', newName);
+            }
+        });
+    });
+}
+
+// WordPress Media Library Integration
+function openMediaLibrary() {
+    // ตรวจสอบว่า wp.media พร้อมใช้งาน
+    if (typeof wp === 'undefined' || !wp.media) {
+        alert('WordPress Media Library ไม่พร้อมใช้งาน\nกรุณาโหลดหน้าใหม่หรือใส่ URL รูปภาพโดยตรง');
+        return;
+    }
+
+    // สร้าง Media Uploader
+    var mediaUploader = wp.media({
+        title: 'เลือกรูปภาพสำหรับบริการ',
+        button: {
+            text: 'เลือกรูปนี้'
+        },
+        multiple: false,
+        library: {
+            type: 'image'
+        }
+    });
+
+    // เมื่อเลือกรูปภาพแล้ว
+    mediaUploader.on('select', function() {
+        var attachment = mediaUploader.state().get('selection').first().toJSON();
+        
+        // ใส่ URL ลงในฟิลด์ (รองรับทั้ง jQuery และ vanilla JS)
+        var imageUrlField = document.getElementById('image_url');
+        if (imageUrlField) {
+            imageUrlField.value = attachment.url;
+        }
+        if (typeof $ !== 'undefined') {
+            $('#image_url').val(attachment.url);
+        }
+        
+        // แสดง preview (รองรับทั้ง jQuery และ vanilla JS)
+        var previewHtml = '<img src="' + attachment.url + '" alt="Preview" style="max-width: 200px; height: auto; border-radius: 4px; border: 1px solid #ddd;">';
+        var preview = document.getElementById('image-preview');
+        if (preview) {
+            preview.innerHTML = previewHtml;
+        }
+        if (typeof $ !== 'undefined') {
+            $('#image-preview').html(previewHtml);
+        }
+    });
+
+    // เปิด Media Library
+    mediaUploader.open();
+}
+
+// ทำให้ฟังก์ชันเป็น global
+window.openMediaLibrary = openMediaLibrary;
+
+// Chart initialization function
+function initializeCharts() {
+    // Monthly bookings chart
+    var monthlyCtx = document.getElementById('monthlyChart');
+    if (monthlyCtx && typeof monthlyData !== 'undefined') {
+        new Chart(monthlyCtx, {
+            type: 'line',
+            data: monthlyData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'การจองรายเดือน'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+    
+    // Service distribution chart
+    var serviceCtx = document.getElementById('serviceChart');
+    if (serviceCtx && typeof serviceData !== 'undefined') {
+        new Chart(serviceCtx, {
+            type: 'doughnut',
+            data: serviceData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'การใช้งานบริการ'
+                    }
+                }
+            }
+        });
+    }
+}
+
+// Utility functions
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+function showNotification(message, type) {
+    type = type || 'info';
+    
+    var notification = document.createElement('div');
+    notification.className = 'psu-notification psu-notification-' + type;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(function() {
+        notification.classList.add('show');
+    }, 100);
+    
+    setTimeout(function() {
+        notification.classList.remove('show');
+        setTimeout(function() {
+            document.body.removeChild(notification);
+        }, 300);
+    }, 3000);
+}
+
+// Export functions
+function exportData(format) {
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '';
+    
+    var formatInput = document.createElement('input');
+    formatInput.type = 'hidden';
+    formatInput.name = 'export_format';
+    formatInput.value = format;
+    
+    var actionInput = document.createElement('input');
+    actionInput.type = 'hidden';
+    actionInput.name = 'action';
+    actionInput.value = 'export_data';
+    
+    form.appendChild(formatInput);
+    form.appendChild(actionInput);
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+}
