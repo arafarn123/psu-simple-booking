@@ -641,4 +641,139 @@
         align-items: flex-start;
         gap: 5px;
     }
+}
+
+/* Custom Form Fields Styles */
+.psu-form-group select {
+    padding: 12px 16px;
+    border: 2px solid var(--psu-border);
+    border-radius: var(--psu-radius);
+    font-size: 16px;
+    background: var(--psu-white);
+    color: var(--psu-text);
+    transition: border-color 0.2s ease;
+    width: 100%;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.psu-form-group select:focus {
+    border-color: var(--psu-primary);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(43, 63, 106, 0.1);
+}
+
+.psu-radio-group,
+.psu-checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.psu-radio-label,
+.psu-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: normal !important;
+    margin-bottom: 0 !important;
+    padding: 8px 12px;
+    border: 1px solid var(--psu-border);
+    border-radius: var(--psu-radius);
+    transition: all 0.2s ease;
+    background: var(--psu-white);
+}
+
+.psu-radio-label:hover,
+.psu-checkbox-label:hover {
+    background: var(--psu-accent);
+    border-color: var(--psu-primary);
+}
+
+.psu-radio-label input,
+.psu-checkbox-label input {
+    margin: 0 !important;
+    width: auto !important;
+    padding: 0 !important;
+    border: none !important;
+    background: none !important;
+}
+
+.psu-field-description {
+    display: block;
+    margin-top: 5px;
+    color: var(--psu-text-light);
+    font-style: italic;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.psu-form-group input[type="file"] {
+    padding: 8px 0;
+    border: 2px dashed var(--psu-border);
+    border-radius: var(--psu-radius);
+    background: var(--psu-accent);
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+}
+
+.psu-form-group input[type="file"]:hover {
+    border-color: var(--psu-primary);
+}
+
+/* Required field indicator */
+.psu-form-group label span[style*="color: #d63638"] {
+    color: var(--psu-error) !important;
+    font-weight: bold;
+}
+
+/* Field Validation Styles */
+.psu-field-error-group {
+    margin-bottom: 25px;
+}
+
+.psu-field-error-group input,
+.psu-field-error-group textarea,
+.psu-field-error-group select {
+    border-color: var(--psu-error) !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+}
+
+.psu-field-error-group .psu-radio-label,
+.psu-field-error-group .psu-checkbox-label {
+    border-color: var(--psu-error);
+    background-color: rgba(239, 68, 68, 0.05);
+}
+
+.psu-field-error {
+    display: block;
+    margin-top: 8px;
+    color: var(--psu-error);
+    font-size: 14px;
+    font-weight: 500;
+    padding: 5px 10px;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 4px;
+    border-left: 3px solid var(--psu-error);
+}
+
+/* Responsive adjustments for custom fields */
+@media (max-width: 768px) {
+    .psu-radio-group,
+    .psu-checkbox-group {
+        gap: 8px;
+    }
+    
+    .psu-radio-label,
+    .psu-checkbox-label {
+        padding: 10px;
+        font-size: 14px;
+    }
+    
+    .psu-field-error {
+        font-size: 13px;
+        padding: 4px 8px;
+    }
 } 

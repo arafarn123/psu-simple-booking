@@ -35,6 +35,10 @@ $texts = array_merge($default_texts, $texts);
 // ข้อมูลผู้ใช้ปัจจุบัน
 $current_user = wp_get_current_user();
 
+// ดึง custom form fields
+$custom_fields_json = $psu_booking->get_setting('custom_form_fields');
+$custom_fields = $custom_fields_json ? json_decode($custom_fields_json, true) : array();
+
 
 ?>
 
@@ -161,6 +165,98 @@ $current_user = wp_get_current_user();
                     <label for="additional_info"><?php echo esc_html($texts['additional_info']); ?></label>
                     <textarea id="additional_info" name="additional_info" rows="4"></textarea>
                 </div>
+                
+                <?php if (!empty($custom_fields)): ?>
+                    <hr style="margin: 30px 0; border: none; border-top: 1px solid #e0e0e0;">
+                    <h4 style="color: #2B3F6A; margin-bottom: 20px;">ข้อมูลเพิ่มเติม</h4>
+                    
+                    <?php foreach ($custom_fields as $index => $field): ?>
+                        <div class="psu-form-group">
+                            <label for="custom_field_<?php echo $index; ?>">
+                                <?php echo esc_html($field['label']); ?>
+                                <?php if ($field['required']): ?>
+                                    <span style="color: #d63638;">*</span>
+                                <?php endif; ?>
+                            </label>
+                            
+                            <?php
+                            $field_name = 'custom_field_' . $index;
+                            $field_id = 'custom_field_' . $index;
+                            $required = $field['required'] ? 'required' : '';
+                            $placeholder = !empty($field['placeholder']) ? $field['placeholder'] : '';
+                            
+                            switch ($field['type']) {
+                                case 'textarea':
+                                    echo '<textarea id="' . $field_id . '" name="' . $field_name . '" rows="3" placeholder="' . esc_attr($placeholder) . '" ' . $required . '></textarea>';
+                                    break;
+                                    
+                                case 'select':
+                                    echo '<select id="' . $field_id . '" name="' . $field_name . '" ' . $required . '>';
+                                    echo '<option value="">เลือก...</option>';
+                                    if (!empty($field['options'])) {
+                                        $options = explode("\n", $field['options']);
+                                        foreach ($options as $option) {
+                                            $option = trim($option);
+                                            if ($option) {
+                                                echo '<option value="' . esc_attr($option) . '">' . esc_html($option) . '</option>';
+                                            }
+                                        }
+                                    }
+                                    echo '</select>';
+                                    break;
+                                    
+                                case 'radio':
+                                    if (!empty($field['options'])) {
+                                        echo '<div class="psu-radio-group">';
+                                        $options = explode("\n", $field['options']);
+                                        foreach ($options as $opt_index => $option) {
+                                            $option = trim($option);
+                                            if ($option) {
+                                                echo '<label class="psu-radio-label">';
+                                                echo '<input type="radio" name="' . $field_name . '" value="' . esc_attr($option) . '" ' . $required . '> ';
+                                                echo esc_html($option);
+                                                echo '</label>';
+                                            }
+                                        }
+                                        echo '</div>';
+                                    }
+                                    break;
+                                    
+                                case 'checkbox':
+                                    if (!empty($field['options'])) {
+                                        echo '<div class="psu-checkbox-group">';
+                                        $options = explode("\n", $field['options']);
+                                        foreach ($options as $opt_index => $option) {
+                                            $option = trim($option);
+                                            if ($option) {
+                                                echo '<label class="psu-checkbox-label">';
+                                                echo '<input type="checkbox" name="' . $field_name . '[]" value="' . esc_attr($option) . '"> ';
+                                                echo esc_html($option);
+                                                echo '</label>';
+                                            }
+                                        }
+                                        echo '</div>';
+                                    }
+                                    break;
+                                    
+                                case 'file':
+                                    echo '<input type="file" id="' . $field_id . '" name="' . $field_name . '" ' . $required . '>';
+                                    break;
+                                    
+                                default:
+                                    echo '<input type="' . esc_attr($field['type']) . '" id="' . $field_id . '" name="' . $field_name . '" placeholder="' . esc_attr($placeholder) . '" ' . $required . '>';
+                            }
+                            ?>
+                            
+                            <?php if (!empty($field['description'])): ?>
+                                <small class="psu-field-description" style="display: block; margin-top: 5px; color: #666; font-style: italic;">
+                                    <?php echo esc_html($field['description']); ?>
+                                </small>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+                
             </form>
             
             <div class="psu-booking-summary">

@@ -71,6 +71,65 @@
         $(document).on('click', '#submit-booking', function() {
             submitBooking();
         });
+        
+        // Bind custom field validation
+        bindCustomFieldValidation();
+    }
+    
+    function bindCustomFieldValidation() {
+        // Real-time validation สำหรับ custom fields
+        $(document).on('blur change', '[name^="custom_field_"][required]', function() {
+            validateField($(this));
+        });
+        
+        $(document).on('change', '[name^="custom_field_"][required][type="radio"], [name^="custom_field_"][required][type="checkbox"]', function() {
+            validateField($(this));
+        });
+    }
+    
+    function validateField($field) {
+        const fieldType = $field.attr('type');
+        const $formGroup = $field.closest('.psu-form-group');
+        const $label = $formGroup.find('label');
+        
+        // ลบ error message เก่า
+        $formGroup.find('.psu-field-error').remove();
+        $formGroup.removeClass('psu-field-error-group');
+        
+        let isValid = true;
+        let errorMessage = '';
+        
+        if (fieldType === 'checkbox') {
+            // สำหรับ checkbox ต้องเลือกอย่างน้อย 1 ตัวเลือก
+            const fieldName = $field.attr('name').replace('[]', '');
+            const checkedCount = $(`[name="${fieldName}[]"]:checked`).length;
+            if (checkedCount === 0) {
+                isValid = false;
+                errorMessage = 'กรุณาเลือกอย่างน้อย 1 ตัวเลือก';
+            }
+        } else if (fieldType === 'radio') {
+            // สำหรับ radio ต้องเลือก 1 ตัวเลือก
+            const fieldName = $field.attr('name');
+            const checkedCount = $(`[name="${fieldName}"]:checked`).length;
+            if (checkedCount === 0) {
+                isValid = false;
+                errorMessage = 'กรุณาเลือก 1 ตัวเลือก';
+            }
+        } else {
+            // สำหรับ input types อื่นๆ
+            const value = $field.val().trim();
+            if (!value) {
+                isValid = false;
+                errorMessage = 'กรุณากรอกข้อมูลในฟิลด์นี้';
+            }
+        }
+        
+        if (!isValid) {
+            $formGroup.addClass('psu-field-error-group');
+            $formGroup.append(`<div class="psu-field-error">${errorMessage}</div>`);
+        }
+        
+        return isValid;
     }
 
     function selectService(serviceId) {
@@ -404,6 +463,80 @@
             return;
         }
         
+        // ตรวจสอบ required custom fields
+        let missingFields = [];
+        
+        $('[name^="custom_field_"][required]').each(function() {
+            const $field = $(this);
+            const fieldType = $field.attr('type');
+            const fieldLabel = $field.closest('.psu-form-group').find('label').text().replace('*', '').trim();
+            
+            if (fieldType === 'checkbox') {
+                // สำหรับ checkbox ต้องเลือกอย่างน้อย 1 ตัวเลือก
+                const fieldName = $field.attr('name').replace('[]', '');
+                const checkedCount = $(`[name="${fieldName}[]"]:checked`).length;
+                if (checkedCount === 0) {
+                    missingFields.push(fieldLabel);
+                }
+            } else if (fieldType === 'radio') {
+                // สำหรับ radio ต้องเลือก 1 ตัวเลือก
+                const fieldName = $field.attr('name');
+                const checkedCount = $(`[name="${fieldName}"]:checked`).length;
+                if (checkedCount === 0) {
+                    missingFields.push(fieldLabel);
+                }
+            } else {
+                // สำหรับ input types อื่นๆ
+                const value = $field.val().trim();
+                if (!value) {
+                    missingFields.push(fieldLabel);
+                }
+            }
+        });
+        
+        if (missingFields.length > 0) {
+            // แสดง validation errors แบบ real-time
+            $('[name^="custom_field_"][required]').each(function() {
+                validateField($(this));
+            });
+            
+            // เลื่อนไปยังฟิลด์แรกที่มีปัญหา
+            const $firstErrorField = $('.psu-field-error-group').first();
+            if ($firstErrorField.length > 0) {
+                $('html, body').animate({
+                    scrollTop: $firstErrorField.offset().top - 100
+                }, 500);
+            }
+            
+            alert('กรุณากรอกข้อมูลในฟิลด์ที่จำเป็น:\n• ' + missingFields.join('\n• '));
+            return;
+        }
+        
+        // รวบรวมข้อมูล custom fields
+        const customFieldsData = {};
+        $('[name^="custom_field_"]').each(function() {
+            const fieldName = $(this).attr('name');
+            const fieldType = $(this).attr('type');
+            
+            if (fieldType === 'checkbox') {
+                // สำหรับ checkbox ให้เก็บ array ของค่าที่เลือก
+                if (!customFieldsData[fieldName]) {
+                    customFieldsData[fieldName] = [];
+                }
+                if ($(this).is(':checked')) {
+                    customFieldsData[fieldName].push($(this).val());
+                }
+            } else if (fieldType === 'radio') {
+                // สำหรับ radio ให้เก็บค่าที่เลือก
+                if ($(this).is(':checked')) {
+                    customFieldsData[fieldName] = $(this).val();
+                }
+            } else {
+                // สำหรับ input types อื่นๆ
+                customFieldsData[fieldName] = $(this).val();
+            }
+        });
+        
         const formData = {
             action: 'psu_submit_booking',
             service_id: selectedService.id,
@@ -412,6 +545,7 @@
             booking_date: selectedDate,
             timeslots: selectedTimeslots,
             additional_info: $('#additional_info').val().trim(),
+            custom_fields: customFieldsData,
             nonce: psu_ajax.nonce
         };
         
@@ -440,12 +574,12 @@
     }
 
     function showSuccessMessage(data) {
-        const totalPriceText = data.total_price == 0 ? 'ไม่มีค่าบริการ' : Number(data.total_price).toLocaleString() + ' บาท';
+        const totalPriceText = data.total_price == 0 ? '' : '<p><strong>ราคารวม:</strong>' + Number(data.total_price).toLocaleString() + ' บาท</p>';
         
         const html = `
             <p>การจองของคุณได้รับการยืนยันแล้ว</p>
             <p><strong>รหัสการจอง:</strong> ${data.booking_ids.join(', ')}</p>
-            <p><strong>ราคารวม:</strong> ${totalPriceText}</p>
+            ${totalPriceText}
             <p>ท่านจะได้รับอีเมลยืนยันการจองในอีกสักครู่</p>
         `;
         $('#success-details').html(html);

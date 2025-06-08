@@ -405,7 +405,8 @@ class PSU_Simple_Booking {
             'customer_email' => sanitize_email($_POST['customer_email']),
             'booking_date' => sanitize_text_field($_POST['booking_date']),
             'timeslots' => $_POST['timeslots'], // array of selected timeslots
-            'additional_info' => sanitize_textarea_field($_POST['additional_info'])
+            'additional_info' => sanitize_textarea_field($_POST['additional_info']),
+            'custom_fields' => isset($_POST['custom_fields']) ? $_POST['custom_fields'] : array()
         );
         
         $result = $this->create_booking($data);
