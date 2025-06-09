@@ -66,6 +66,8 @@ class PSU_Simple_Booking {
         add_action('wp_ajax_psu_get_calendar_bookings', array($this, 'ajax_get_calendar_bookings'));
         add_action('wp_ajax_nopriv_psu_get_calendar_bookings', array($this, 'ajax_get_calendar_bookings'));
         add_action('wp_ajax_psu_get_admin_calendar_bookings', array($this, 'ajax_get_admin_calendar_bookings'));
+        add_action('wp_ajax_psu_export_bookings_csv', array($this, 'ajax_export_bookings_csv'));
+        add_action('wp_ajax_psu_check_available_timeslots', array($this, 'ajax_check_available_timeslots'));
         
         // Email hooks
         add_action('psu_booking_created', array($this, 'send_booking_notification'), 10, 2);
@@ -1064,7 +1066,7 @@ class PSU_Simple_Booking {
         error_log('PSU Booking: Manual parsing input: ' . $json_string);
         
         // ลองใช้ regex เพื่อดึงข้อมูลหลัก
-        $pattern = '/\{"start":"([^"]+)","end":"([^"]+)","price":([^,}]+),"display":"([^"]+)","category":"([^"]+)"\}/';
+        $pattern = '/\{"start":"([^"]+)","end":"([^"]+)","price":([^,}]+),"display":"([^"]+)"\}/';
         
         if (preg_match_all($pattern, $json_string, $matches, PREG_SET_ORDER)) {
             $timeslots = array();
@@ -1387,17 +1389,351 @@ class PSU_Simple_Booking {
         
         $bookings = $wpdb->get_results($wpdb->prepare($query, $where_params));
         
-        // Group by date
-        $calendar_data = array();
+        // Get service details if a specific service is filtered
+        $service = null;
+        if ($service_filter) {
+            $service = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}psu_services WHERE id = %d", $service_filter));
+        }
+
+        // Pre-group bookings by date
+        $bookings_by_date = array();
         foreach ($bookings as $booking) {
             $date = $booking->booking_date;
-            if (!isset($calendar_data[$date])) {
-                $calendar_data[$date] = array();
+            if (!isset($bookings_by_date[$date])) {
+                $bookings_by_date[$date] = array();
             }
-            $calendar_data[$date][] = $booking;
+            // Add nonce URLs for quick actions
+            $booking->approve_url = wp_nonce_url('?page=psu-booking-bookings&action=approve&booking_id=' . $booking->id, 'approve_booking_' . $booking->id);
+            $booking->reject_url  = wp_nonce_url('?page=psu-booking-bookings&action=reject&booking_id=' . $booking->id, 'reject_booking_' . $booking->id);
+            $booking->delete_url  = wp_nonce_url('?page=psu-booking-bookings&action=delete&booking_id=' . $booking->id, 'delete_booking_' . $booking->id);
+            $bookings_by_date[$date][] = $booking;
+        }
+
+        // Determine status for each day of the month
+        $calendar_data = array();
+        $days_in_month = cal_days_in_month(CAL_GREGORIAN, $php_month, $year);
+
+        for ($day = 1; $day <= $days_in_month; $day++) {
+            $date_str = sprintf('%d-%02d-%02d', $year, $php_month, $day);
+            $day_bookings = isset($bookings_by_date[$date_str]) ? $bookings_by_date[$date_str] : [];
+            $status = 'available';
+
+            if ($service) {
+                // Logic based on service working hours
+                $day_of_week = date('w', strtotime($date_str));
+                $working_days = explode(',', $service->working_days);
+
+                if (in_array($day_of_week, $working_days)) {
+                    $start_time = new DateTime($service->available_start_time);
+                    $end_time = new DateTime($service->available_end_time);
+                    $available_minutes = ($end_time->getTimestamp() - $start_time->getTimestamp()) / 60;
+                    
+                    if ($service->break_start_time && $service->break_end_time) {
+                        $break_start = new DateTime($service->break_start_time);
+                        $break_end = new DateTime($service->break_end_time);
+                        $available_minutes -= ($break_end->getTimestamp() - $break_start->getTimestamp()) / 60;
+                    }
+
+                    $booked_minutes = 0;
+                    foreach ($day_bookings as $booking) {
+                        if (in_array($booking->status, ['approved', 'pending']) && $booking->service_id == $service_filter) {
+                            $booking_start = new DateTime($booking->start_time);
+                            $booking_end = new DateTime($booking->end_time);
+                            $booked_minutes += ($booking_end->getTimestamp() - $booking_start->getTimestamp()) / 60;
+                        }
+                    }
+                    
+                    if ($booked_minutes <= 0) {
+                        $status = 'available';
+                    } elseif ($booked_minutes >= $available_minutes) {
+                        $status = 'full';
+                    } else {
+                        $status = 'partial';
+                    }
+                } else {
+                     $status = 'available'; // Non-working day is considered available (no bookings possible)
+                }
+            } else {
+                // Fallback logic based on booking count
+                $active_bookings_count = 0;
+                foreach ($day_bookings as $booking) {
+                    if (in_array($booking->status, ['approved', 'pending'])) {
+                        $active_bookings_count++;
+                    }
+                }
+
+                if ($active_bookings_count <= 0) {
+                    $status = 'available';
+                } elseif ($active_bookings_count > 0 && $active_bookings_count < 5) {
+                    $status = 'partial';
+                } else {
+                    $status = 'full';
+                }
+            }
+
+            $calendar_data[$date_str] = array(
+                'status'   => $status,
+                'bookings' => $day_bookings,
+            );
         }
         
         wp_send_json_success($calendar_data);
+    }
+
+    /**
+     * AJAX: ส่งออกการจองเป็น CSV
+     */
+    public function ajax_export_bookings_csv() {
+        if (!wp_verify_nonce($_POST['nonce'], 'psu_admin_nonce') || !current_user_can('manage_options')) {
+            wp_die('การตรวจสอบความปลอดภัยล้มเหลว');
+        }
+
+        // รับพารามิเตอร์การกรอง (เหมือนกับหน้ารายการจอง)
+        $status_filter = isset($_POST['status']) ? sanitize_text_field($_POST['status']) : '';
+        $service_filter = isset($_POST['service_id']) ? intval($_POST['service_id']) : '';
+        $date_from = isset($_POST['date_from']) ? sanitize_text_field($_POST['date_from']) : '';
+        $date_to = isset($_POST['date_to']) ? sanitize_text_field($_POST['date_to']) : '';
+
+        global $wpdb;
+        $where_conditions = array();
+        $where_values = array();
+
+        // ถ้าไม่ได้ระบุช่วงวันที่ ให้แสดงเดือนปัจจุบันเป็นค่าเริ่มต้น
+        if (empty($date_from) && empty($date_to)) {
+            $current_month = date('Y-m');
+            $where_conditions[] = "DATE_FORMAT(b.booking_date, '%Y-%m') = %s";
+            $where_values[] = $current_month;
+        }
+
+        if ($status_filter) {
+            $where_conditions[] = "b.status = %s";
+            $where_values[] = $status_filter;
+        }
+
+        if ($service_filter) {
+            $where_conditions[] = "b.service_id = %d";
+            $where_values[] = $service_filter;
+        }
+
+        if ($date_from) {
+            $where_conditions[] = "b.booking_date >= %s";
+            $where_values[] = $date_from;
+        }
+
+        if ($date_to) {
+            $where_conditions[] = "b.booking_date <= %s";
+            $where_values[] = $date_to;
+        }
+
+        $where_clause = '';
+        if (!empty($where_conditions)) {
+            $where_clause = 'WHERE ' . implode(' AND ', $where_conditions);
+        }
+
+        $query = "
+            SELECT 
+                b.id,
+                b.customer_name,
+                b.customer_email,
+                b.customer_phone,
+                s.name as service_name,
+                s.category as service_category,
+                b.booking_date,
+                b.start_time,
+                b.end_time,
+                b.total_price,
+                b.status,
+                b.rejection_reason,
+                b.admin_notes,
+                b.created_at
+            FROM {$wpdb->prefix}psu_bookings b
+            LEFT JOIN {$wpdb->prefix}psu_services s ON b.service_id = s.id
+            $where_clause
+            ORDER BY b.created_at DESC
+        ";
+
+        if (!empty($where_values)) {
+            $bookings = $wpdb->get_results($wpdb->prepare($query, $where_values));
+        } else {
+            $bookings = $wpdb->get_results($query);
+        }
+
+        // ส่งออกเป็น CSV
+        $filename = 'bookings_export_' . date('Y-m-d_H-i-s') . '.csv';
+        
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        // เพิ่ม BOM สำหรับ UTF-8 เพื่อให้ Excel แสดงผลภาษาไทยได้ถูกต้อง
+        echo "\xEF\xBB\xBF";
+
+        $output = fopen('php://output', 'w');
+
+        // หัวข้อคอลัมน์
+        $headers = array(
+            'รหัสจอง',
+            'ชื่อผู้จอง',
+            'อีเมล',
+            'เบอร์โทรศัพท์',
+            'บริการ',
+            'หมวดหมู่',
+            'วันที่จอง',
+            'เวลาเริ่ม',
+            'เวลาสิ้นสุด',
+            'ราคา',
+            'สถานะ',
+            'เหตุผลปฏิเสธ',
+            'บันทึกแอดมิน',
+            'วันที่สร้าง'
+        );
+        fputcsv($output, $headers);
+
+        // ข้อมูลการจอง
+        foreach ($bookings as $booking) {
+            $status_text = '';
+            switch ($booking->status) {
+                case 'pending': $status_text = 'รออนุมัติ'; break;
+                case 'approved': $status_text = 'อนุมัติแล้ว'; break;
+                case 'rejected': $status_text = 'ถูกปฏิเสธ'; break;
+                default: $status_text = $booking->status;
+            }
+
+            $row = array(
+                str_pad($booking->id, 6, '0', STR_PAD_LEFT),
+                $booking->customer_name,
+                $booking->customer_email,
+                $booking->customer_phone ?: '-',
+                $booking->service_name,
+                $booking->service_category ?: '-',
+                date('d/m/Y', strtotime($booking->booking_date)),
+                date('H:i', strtotime($booking->start_time)),
+                date('H:i', strtotime($booking->end_time)),
+                number_format($booking->total_price, 2),
+                $status_text,
+                $booking->rejection_reason ?: '-',
+                $booking->admin_notes ?: '-',
+                date('d/m/Y H:i', strtotime($booking->created_at))
+            );
+            fputcsv($output, $row);
+        }
+
+        fclose($output);
+        exit;
+    }
+
+    /**
+     * AJAX: ตรวจสอบช่วงเวลาที่ว่าง สำหรับหน้าเพิ่มการจองใหม่
+     */
+    public function ajax_check_available_timeslots() {
+        if (!wp_verify_nonce($_POST['nonce'], 'psu_admin_nonce') || !current_user_can('manage_options')) {
+            wp_send_json_error('การตรวจสอบความปลอดภัยล้มเหลว');
+        }
+
+        $service_id = intval($_POST['service_id']);
+        $date = sanitize_text_field($_POST['date']);
+
+        if (!$service_id || !$date) {
+            wp_send_json_error('ข้อมูลไม่ครบถ้วน');
+        }
+
+        global $wpdb;
+        
+        // ดึงข้อมูลบริการ
+        $service = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}psu_services WHERE id = %d AND status = 1", 
+            $service_id
+        ));
+
+        if (!$service) {
+            wp_send_json_error('ไม่พบบริการ');
+        }
+
+        // ตรวจสอบว่าเป็นวันทำการหรือไม่
+        $date_obj = new DateTime($date);
+        $day_of_week = $date_obj->format('w'); // 0 = Sunday
+        $working_days = explode(',', $service->working_days);
+        
+        if (!in_array($day_of_week, $working_days)) {
+            wp_send_json_error('วันที่เลือกไม่ใช่วันทำการของบริการนี้');
+        }
+
+        // ดึงการจองที่มีอยู่ในวันนั้น
+        $existing_bookings = $wpdb->get_results($wpdb->prepare(
+            "SELECT start_time, end_time FROM {$wpdb->prefix}psu_bookings 
+             WHERE service_id = %d AND booking_date = %s AND status IN ('approved', 'pending')",
+            $service_id, $date
+        ));
+
+        // สร้าง array ของช่วงเวลาที่ถูกจอง
+        $booked_slots = array();
+        foreach ($existing_bookings as $booking) {
+            $booked_slots[] = array(
+                'start' => $booking->start_time,
+                'end' => $booking->end_time
+            );
+        }
+
+        // สร้างช่วงเวลาที่ว่าง
+        $available_slots = $this->generate_available_slots_for_admin($service, $date, $booked_slots);
+
+        wp_send_json_success($available_slots);
+    }
+
+    /**
+     * สร้างช่วงเวลาที่ว่างสำหรับแอดมิน (ไม่เข้มงวดเหมือน frontend)
+     */
+    private function generate_available_slots_for_admin($service, $date, $booked_slots) {
+        $available_slots = array();
+        
+        $start_time = new DateTime($date . ' ' . $service->available_start_time);
+        $end_time = new DateTime($date . ' ' . $service->available_end_time);
+        $duration = $service->duration; // นาที
+        
+        while ($start_time < $end_time) {
+            $slot_end = clone $start_time;
+            $slot_end->add(new DateInterval('PT' . $duration . 'M'));
+            
+            if ($slot_end > $end_time) {
+                break;
+            }
+            
+            // ตรวจสอบว่าช่วงเวลานี้ชนกับการจองที่มีอยู่หรือไม่
+            $is_available = true;
+            $slot_start_str = $start_time->format('H:i:s');
+            $slot_end_str = $slot_end->format('H:i:s');
+            
+            foreach ($booked_slots as $booked) {
+                // ตรวจสอบการชนกัน
+                if (($slot_start_str < $booked['end'] && $slot_end_str > $booked['start'])) {
+                    $is_available = false;
+                    break;
+                }
+            }
+            
+            // ตรวจสอบช่วงพัก (ถ้ามี)
+            if ($is_available && $service->break_start_time && $service->break_end_time) {
+                $break_start = $service->break_start_time;
+                $break_end = $service->break_end_time;
+                
+                if (($slot_start_str < $break_end && $slot_end_str > $break_start)) {
+                    $is_available = false;
+                }
+            }
+            
+            if ($is_available) {
+                $available_slots[] = array(
+                    'time' => $start_time->format('H:i'),
+                    'label' => $start_time->format('H:i') . ' - ' . $slot_end->format('H:i')
+                );
+            }
+            
+            // เลื่อนไปช่วงเวลาถัดไป
+            $start_time->add(new DateInterval('PT' . $duration . 'M'));
+        }
+        
+        return $available_slots;
     }
 }
 

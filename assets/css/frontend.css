@@ -469,7 +469,7 @@
 .psu-form-group textarea,
 .psu-form-group select {
     width: 100%;
-    padding: 12px 15px;
+    /* padding: 12px 15px; */
     border: 1px solid var(--psu-border);
     border-radius: var(--psu-radius);
     font-family: var(--psu-font);

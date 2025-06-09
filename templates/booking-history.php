@@ -158,7 +158,7 @@ if (!empty($stats_query)) {
         <div class="psu-calendar-section">
             <div class="psu-calendar-header">
                 <button class="psu-btn psu-btn-icon" onclick="changeCalendarMonth(-1)">‹</button>
-                <h3 id="calendar-month-year"></h3>
+                <h3 id="calendar-month-year" style="color: #ffffff"></h3>
                 <button class="psu-btn psu-btn-icon" onclick="changeCalendarMonth(1)">›</button>
             </div>
             

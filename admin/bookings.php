@@ -58,6 +58,10 @@ if (isset($_GET['action']) && $_GET['action'] == 'view_details' && isset($_GET['
     // โหลดหน้าแก้ไข
     include_once('booking-edit.php');
 
+} elseif (isset($_GET['action']) && $_GET['action'] == 'add_new') {
+    // โหลดหน้าเพิ่มการจองใหม่
+    include_once('booking-add.php');
+
 } else {
     // แสดงหน้ารายการปกติ
 
@@ -67,15 +71,17 @@ if (isset($_GET['action']) && $_GET['action'] == 'view_details' && isset($_GET['
     $date_from = isset($_GET['date_from']) ? sanitize_text_field($_GET['date_from']) : '';
     $date_to = isset($_GET['date_to']) ? sanitize_text_field($_GET['date_to']) : '';
 
-    // สร้าง query สำหรับดึงข้อมูล (เฉพาะเดือนปัจจุบัน)
+    // สร้าง query สำหรับดึงข้อมูล
     global $wpdb;
     $where_conditions = array();
     $where_values = array();
 
-    // เพิ่มเงื่อนไขเดือนปัจจุบัน
-    $current_month = date('Y-m');
-    $where_conditions[] = "DATE_FORMAT(b.booking_date, '%Y-%m') = %s";
-    $where_values[] = $current_month;
+    // ถ้าไม่ได้ระบุช่วงวันที่ ให้แสดงเดือนปัจจุบันเป็นค่าเริ่มต้น
+    if (empty($date_from) && empty($date_to)) {
+        $current_month = date('Y-m');
+        $where_conditions[] = "DATE_FORMAT(b.booking_date, '%Y-%m') = %s";
+        $where_values[] = $current_month;
+    }
 
     if ($status_filter) {
         $where_conditions[] = "b.status = %s";
@@ -185,7 +191,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'view_details' && isset($_GET['
         </div>
         
         <div class="alignright actions">
-            <a href="#" class="button" onclick="exportBookings()">ส่งออก Excel</a>
+            <a href="?page=psu-booking-bookings&action=add_new" class="button button-primary">เพิ่มการจองใหม่</a>
+            <a href="#" class="button" onclick="exportBookings()">ส่งออก CSV</a>
         </div>
     </div>
 
@@ -218,16 +225,16 @@ if (isset($_GET['action']) && $_GET['action'] == 'view_details' && isset($_GET['
                     
                     <div class="psu-calendar-legend">
                         <div class="legend-item">
-                            <span class="legend-color status-approved"></span>
-                            <span>อนุมัติ</span>
+                            <span class="legend-color status-available"></span>
+                            <span>ว่าง</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-color status-pending"></span>
-                            <span>รออนุมัติ</span>
+                            <span class="legend-color status-partial"></span>
+                            <span>จองบางส่วน</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-color status-rejected"></span>
-                            <span>ปฏิเสธ</span>
+                            <span class="legend-color status-full"></span>
+                            <span>เต็ม</span>
                         </div>
                     </div>
                 </div>
@@ -256,21 +263,28 @@ if (isset($_GET['action']) && $_GET['action'] == 'view_details' && isset($_GET['
 
     <!-- รายการจอง - List View (เดือนปัจจุบัน) -->
     <div id="list-view">
-        <?php 
-        $thai_months = [
-            '01' => 'มกราคม', '02' => 'กุมภาพันธ์', '03' => 'มีนาคม', '04' => 'เมษายน',
-            '05' => 'พฤษภาคม', '06' => 'มิถุนายน', '07' => 'กรกฎาคม', '08' => 'สิงหาคม',
-            '09' => 'กันยายน', '10' => 'ตุลาคม', '11' => 'พฤศจิกายน', '12' => 'ธันวาคม'
-        ];
-        $current_month_num = date('m');
-        $current_year_num = date('Y');
-        $thai_year = $current_year_num + 543;
+        <?php
+        $has_filters = !empty($status_filter) || !empty($service_filter) || !empty($date_from) || !empty($date_to);
+
+        if ($has_filters) {
+            $list_title = "ผลการค้นหารายการจอง";
+        } else {
+            $thai_months = [
+                '01' => 'มกราคม', '02' => 'กุมภาพันธ์', '03' => 'มีนาคม', '04' => 'เมษายน',
+                '05' => 'พฤษภาคม', '06' => 'มิถุนายน', '07' => 'กรกฎาคม', '08' => 'สิงหาคม',
+                '09' => 'กันยายน', '10' => 'ตุลาคม', '11' => 'พฤศจิกายน', '12' => 'ธันวาคม'
+            ];
+            $current_month_num = date('m');
+            $current_year_num = date('Y');
+            $thai_year = $current_year_num + 543;
+            $list_title = 'รายการจองเดือน ' . $thai_months[$current_month_num] . ' ' . $thai_year;
+        }
         ?>
-        <h2>รายการจองเดือน <?php echo $thai_months[$current_month_num] . ' ' . $thai_year; ?></h2>
+        <h2><?php echo esc_html($list_title); ?></h2>
         
         <?php if (empty($bookings)): ?>
             <div class="notice notice-info">
-                <p>ไม่มีรายการจองในเดือนนี้ (หรือตามตัวกรองที่เลือก)</p>
+                <p>ไม่มีรายการจองที่ตรงตามเงื่อนไข (หรือไม่มีรายการจองในเดือนนี้)</p>
             </div>
         <?php else: ?>
         <table class="wp-list-table widefat fixed striped">
@@ -395,7 +409,39 @@ function rejectBooking(event, baseUrl) {
 }
 
 function exportBookings() {
-    alert('ฟีเจอร์ส่งออก Excel จะพัฒนาในเวอร์ชั่นถัดไป');
+    // รับค่าฟิลเตอร์ปัจจุบัน
+    const statusFilter = document.getElementById('filter-status')?.value || '';
+    const serviceFilter = document.getElementById('filter-service')?.value || '';
+    const dateFrom = document.getElementById('filter-date-from')?.value || '';
+    const dateTo = document.getElementById('filter-date-to')?.value || '';
+
+    // สร้าง form สำหรับส่งออก CSV
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '<?php echo admin_url('admin-ajax.php'); ?>';
+    form.style.display = 'none';
+
+    // เพิ่มฟิลด์ต่างๆ
+    const fields = {
+        'action': 'psu_export_bookings_csv',
+        'nonce': '<?php echo wp_create_nonce('psu_admin_nonce'); ?>',
+        'status': statusFilter,
+        'service_id': serviceFilter,
+        'date_from': dateFrom,
+        'date_to': dateTo
+    };
+
+    Object.keys(fields).forEach(key => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = fields[key];
+        form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
 }
 </script>
 <?php

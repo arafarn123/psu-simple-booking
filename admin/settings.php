@@ -362,12 +362,6 @@ $general_settings = array_merge($default_general_settings, $general_settings);
                             <button type="button" class="button button-small" onclick="copyToClipboard('[psu_booking_form]')">คัดลอก</button>
                         </div>
                         <p class="description">แสดงฟอร์มการจองทั้งหมด</p>
-                        
-                        <h5>พารามิเตอร์เพิ่มเติม:</h5>
-                        <ul>
-                            <li><code>[psu_booking_form service_id="1"]</code> - แสดงฟอร์มสำหรับบริการเฉพาะ</li>
-                            <li><code>[psu_booking_form category="ห้องประชุม"]</code> - แสดงฟอร์มสำหรับหมวดหมู่เฉพาะ</li>
-                        </ul>
                     </div>
                     
                     <div class="psu-shortcode-item">

@@ -89,115 +89,110 @@ foreach ($fields as $field) {
         <?php wp_nonce_field('psu_update_booking_details_nonce', 'psu_booking_edit_nonce'); ?>
         <input type="hidden" name="booking_id" value="<?php echo $booking->id; ?>">
 
-        <div id="poststuff">
-            <div id="post-body" class="metabox-holder columns-2">
-
-                <!-- Main Content -->
-                <div id="post-body-content">
-                    <div class="postbox">
-                        <h2 class="hndle"><span>ข้อมูลผู้จอง</span></h2>
-                        <div class="inside">
-                            <table class="form-table">
-                                <tr>
-                                    <th><label for="customer_name">ชื่อ-สกุล</label></th>
-                                    <td><input type="text" id="customer_name" name="customer_name" class="regular-text" value="<?php echo esc_attr($booking->customer_name); ?>"></td>
-                                </tr>
-                                <tr>
-                                    <th><label for="customer_email">อีเมล</label></th>
-                                    <td><input type="email" id="customer_email" name="customer_email" class="regular-text" value="<?php echo esc_attr($booking->customer_email); ?>"></td>
-                                </tr>
-                                <tr>
-                                    <th><label for="customer_phone">เบอร์โทรศัพท์</label></th>
-                                    <td><input type="text" id="customer_phone" name="customer_phone" class="regular-text" value="<?php echo esc_attr($booking->customer_phone); ?>"></td>
-                                </tr>
-                            </table>
-                        </div>
+        <div class="psu-booking-edit-grid">
+            <!-- Left Column -->
+            <div class="psu-booking-edit-left">
+                <div class="postbox">
+                    <h2 class="hndle"><span>ข้อมูลผู้จอง</span></h2>
+                    <div class="inside">
+                        <table class="form-table">
+                            <tr>
+                                <th><label for="customer_name">ชื่อ-สกุล</label></th>
+                                <td><input type="text" id="customer_name" name="customer_name" class="regular-text" value="<?php echo esc_attr($booking->customer_name); ?>"></td>
+                            </tr>
+                            <tr>
+                                <th><label for="customer_email">อีเมล</label></th>
+                                <td><input type="email" id="customer_email" name="customer_email" class="regular-text" value="<?php echo esc_attr($booking->customer_email); ?>"></td>
+                            </tr>
+                            <tr>
+                                <th><label for="customer_phone">เบอร์โทรศัพท์</label></th>
+                                <td><input type="text" id="customer_phone" name="customer_phone" class="regular-text" value="<?php echo esc_attr($booking->customer_phone); ?>"></td>
+                            </tr>
+                        </table>
                     </div>
-                    
-                    <?php if (!empty($custom_fields_data)): ?>
-                    <div class="postbox">
-                        <h2 class="hndle"><span>ข้อมูลเพิ่มเติม</span></h2>
-                        <div class="inside">
-                            <table class="form-table">
-                                <?php foreach ($custom_fields_data as $key => $value): 
-                                    $label = $field_labels[$key] ?? ucwords(str_replace('_', ' ', $key));
-                                ?>
-                                <tr>
-                                    <th><label for="custom_<?php echo esc_attr($key); ?>"><?php echo esc_html($label); ?></label></th>
-                                    <td><input type="text" id="custom_<?php echo esc_attr($key); ?>" name="custom_fields[<?php echo esc_attr($key); ?>]" class="regular-text" value="<?php echo esc_attr($value); ?>"></td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </table>
-                        </div>
+                </div>
+                
+                <?php if (!empty($custom_fields_data)): ?>
+                <div class="postbox">
+                    <h2 class="hndle"><span>ข้อมูลเพิ่มเติม</span></h2>
+                    <div class="inside">
+                        <table class="form-table">
+                            <?php foreach ($custom_fields_data as $key => $value): 
+                                $label = $field_labels[$key] ?? ucwords(str_replace('_', ' ', $key));
+                            ?>
+                            <tr>
+                                <th><label for="custom_<?php echo esc_attr($key); ?>"><?php echo esc_html($label); ?></label></th>
+                                <td><input type="text" id="custom_<?php echo esc_attr($key); ?>" name="custom_fields[<?php echo esc_attr($key); ?>]" class="regular-text" value="<?php echo esc_attr($value); ?>"></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </table>
                     </div>
-                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
+            </div>
 
+            <!-- Right Column -->
+            <div class="psu-booking-edit-right">
+                <div class="postbox">
+                    <h2 class="hndle"><span>ข้อมูลการจอง</span></h2>
+                    <div class="inside">
+                        <p><strong>บริการ:</strong><br><?php echo esc_html($booking->service_name); ?></p>
+                        <table class="form-table">
+                            <tr>
+                                <th><label for="booking_date">วันที่</label></th>
+                                <td><input type="date" id="booking_date" name="booking_date" value="<?php echo esc_attr($booking->booking_date); ?>"></td>
+                            </tr>
+                            <tr>
+                                <th><label for="start_time">เวลาเริ่ม</label></th>
+                                <td><input type="time" id="start_time" name="start_time" value="<?php echo esc_attr($booking->start_time); ?>"></td>
+                            </tr>
+                            <tr>
+                                <th><label for="end_time">เวลาสิ้นสุด</label></th>
+                                <td><input type="time" id="end_time" name="end_time" value="<?php echo esc_attr($booking->end_time); ?>"></td>
+                            </tr>
+                            <tr>
+                                <th><label for="total_price">ราคา (บาท)</label></th>
+                                <td><input type="number" step="0.01" id="total_price" name="total_price" class="small-text" value="<?php echo esc_attr($booking->total_price); ?>"></td>
+                            </tr>
+                            <tr>
+                                <th><label for="status">สถานะ</label></th>
+                                <td>
+                                    <select id="status" name="status">
+                                        <option value="pending" <?php selected($booking->status, 'pending'); ?>>รออนุมัติ</option>
+                                        <option value="approved" <?php selected($booking->status, 'approved'); ?>>อนุมัติแล้ว</option>
+                                        <option value="rejected" <?php selected($booking->status, 'rejected'); ?>>ถูกปฏิเสธ</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr id="rejection-reason-row" style="<?php echo $booking->status == 'rejected' ? '' : 'display: none;'; ?>">
+                                <th><label for="rejection_reason">เหตุผลที่ปฏิเสธ</label></th>
+                                <td><textarea id="rejection_reason" name="rejection_reason" rows="3" class="widefat"><?php echo esc_textarea($booking->rejection_reason); ?></textarea></td>
+                            </tr>
+                        </table>
+                    </div>
                 </div>
 
-                <!-- Sidebar -->
-                <div id="postbox-container-1" class="postbox-container">
-                    <div class="postbox">
-                        <h2 class="hndle"><span>การจัดการ</span></h2>
-                        <div class="inside">
-                            <div class="submitbox">
-                                <div id="major-publishing-actions">
-                                    <div id="publishing-action">
-                                        <input type="submit" name="psu_update_booking_details" class="button button-primary button-large" value="อัปเดตข้อมูล">
-                                    </div>
-                                    <div class="clear"></div>
+                <div class="postbox">
+                    <h2 class="hndle"><span>บันทึกแอดมิน</span></h2>
+                    <div class="inside">
+                        <textarea name="admin_notes" rows="5" class="widefat"><?php echo esc_textarea($booking->admin_notes); ?></textarea>
+                        <p class="description">บันทึกนี้จะแสดงสำหรับผู้ดูแลระบบเท่านั้น</p>
+                    </div>
+                </div>
+
+                <div class="postbox">
+                    <h2 class="hndle"><span>การจัดการ</span></h2>
+                    <div class="inside">
+                        <div class="submitbox">
+                            <div id="major-publishing-actions">
+                                <div id="publishing-action">
+                                    <input type="submit" name="psu_update_booking_details" class="button button-primary button-large" value="อัปเดตข้อมูล">
                                 </div>
+                                <div class="clear"></div>
                             </div>
                         </div>
                     </div>
-
-                    <div class="postbox">
-                        <h2 class="hndle"><span>ข้อมูลการจอง</span></h2>
-                        <div class="inside">
-                            <p><strong>บริการ:</strong><br><?php echo esc_html($booking->service_name); ?></p>
-                            <table class="form-table">
-                                <tr>
-                                    <th><label for="booking_date">วันที่</label></th>
-                                    <td><input type="date" id="booking_date" name="booking_date" value="<?php echo esc_attr($booking->booking_date); ?>"></td>
-                                </tr>
-                                <tr>
-                                    <th><label for="start_time">เวลาเริ่ม</label></th>
-                                    <td><input type="time" id="start_time" name="start_time" value="<?php echo esc_attr($booking->start_time); ?>"></td>
-                                </tr>
-                                 <tr>
-                                    <th><label for="end_time">เวลาสิ้นสุด</label></th>
-                                    <td><input type="time" id="end_time" name="end_time" value="<?php echo esc_attr($booking->end_time); ?>"></td>
-                                </tr>
-                                <tr>
-                                    <th><label for="total_price">ราคา (บาท)</label></th>
-                                    <td><input type="number" step="0.01" id="total_price" name="total_price" class="small-text" value="<?php echo esc_attr($booking->total_price); ?>"></td>
-                                </tr>
-                                <tr>
-                                    <th><label for="status">สถานะ</label></th>
-                                    <td>
-                                        <select id="status" name="status">
-                                            <option value="pending" <?php selected($booking->status, 'pending'); ?>>รออนุมัติ</option>
-                                            <option value="approved" <?php selected($booking->status, 'approved'); ?>>อนุมัติแล้ว</option>
-                                            <option value="rejected" <?php selected($booking->status, 'rejected'); ?>>ถูกปฏิเสธ</option>
-                                        </select>
-                                    </td>
-                                </tr>
-                                <tr id="rejection-reason-row" style="<?php echo $booking->status == 'rejected' ? '' : 'display: none;'; ?>">
-                                    <th><label for="rejection_reason">เหตุผลที่ปฏิเสธ</label></th>
-                                    <td><textarea id="rejection_reason" name="rejection_reason" rows="3" class="widefat"><?php echo esc_textarea($booking->rejection_reason); ?></textarea></td>
-                                </tr>
-                            </table>
-                        </div>
-                    </div>
-
-                     <div class="postbox">
-                        <h2 class="hndle"><span>บันทึกแอดมิน</span></h2>
-                        <div class="inside">
-                           <textarea name="admin_notes" rows="5" class="widefat"><?php echo esc_textarea($booking->admin_notes); ?></textarea>
-                           <p class="description">บันทึกนี้จะแสดงสำหรับผู้ดูแลระบบเท่านั้น</p>
-                        </div>
-                    </div>
                 </div>
-
             </div>
         </div>
     </form>
