@@ -1818,10 +1818,10 @@
 }
 
 .button-small {
-    padding: 4px 8px !important;
+    /* padding: 4px 8px !important; */
     font-size: 12px !important;
     min-width: 30px;
-    height: 30px;
+    /* height: 30px; */
 }
 
 .psu-calendar-grid-container {

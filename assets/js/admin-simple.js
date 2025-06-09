@@ -420,17 +420,17 @@ jQuery(document).ready(function ($) {
         mediaUploader.open();
     }
 
-});
-// เริ่มต้น calendar เมื่อ document พร้อม
-$(document).ready(function () {
-    initAdminCalendar();
+    // เริ่มต้น calendar เมื่อ document พร้อม
+    $(document).ready(function () {
+        initAdminCalendar();
 
-    // เมื่อมีการเปลี่ยนแปลง filter
-    $('.psu-filter-form select, .psu-filter-form input').on('change', function () {
-        updateCalendarView();
+        // เมื่อมีการเปลี่ยนแปลง filter
+        $('.psu-filter-form select, .psu-filter-form input').on('change', function () {
+            updateCalendarView();
+        });
     });
-});
 
+});
 // ทำให้ฟังก์ชันเป็น global
 window.openMediaLibrary = openMediaLibrary;
 window.changeAdminMonth = changeAdminMonth;
