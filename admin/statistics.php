@@ -111,13 +111,27 @@ if ($month) {
 // ดึงข้อมูลบริการสำหรับ dropdown
 $services = $wpdb->get_results("SELECT id, name FROM {$wpdb->prefix}psu_services WHERE status = 1 ORDER BY name");
 
+// เดือนภาษาไทย
+$thai_months = array(
+    1 => 'มกราคม', 2 => 'กุมภาพันธ์', 3 => 'มีนาคม', 4 => 'เมษายน',
+    5 => 'พฤษภาคม', 6 => 'มิถุนายน', 7 => 'กรกฎาคม', 8 => 'สิงหาคม',
+    9 => 'กันยายน', 10 => 'ตุลาคม', 11 => 'พฤศจิกายน', 12 => 'ธันวาคม'
+);
+
+// เดือนย่อภาษาไทย สำหรับแผนภูมิ
+$thai_months_short = array(
+    1 => 'ม.ค.', 2 => 'ก.พ.', 3 => 'มี.ค.', 4 => 'เม.ย.',
+    5 => 'พ.ค.', 6 => 'มิ.ย.', 7 => 'ก.ค.', 8 => 'ส.ค.',
+    9 => 'ก.ย.', 10 => 'ต.ค.', 11 => 'พ.ย.', 12 => 'ธ.ค.'
+);
+
 // สร้างข้อมูลสำหรับ charts
 $monthly_labels = array();
 $monthly_bookings = array();
 $monthly_revenues = array();
 
 for ($i = 1; $i <= 12; $i++) {
-    $monthly_labels[] = date('M', mktime(0, 0, 0, $i, 1));
+    $monthly_labels[] = $thai_months_short[$i];
     $found = false;
     foreach ($monthly_stats as $stat) {
         if ($stat->month == $i) {
@@ -158,7 +172,7 @@ for ($i = 1; $i <= 12; $i++) {
                     <option value="">ทุกเดือน</option>
                     <?php for ($m = 1; $m <= 12; $m++): ?>
                         <option value="<?php echo $m; ?>" <?php selected($month, $m); ?>>
-                            <?php echo date('F', mktime(0, 0, 0, $m, 1)); ?>
+                            <?php echo $thai_months[$m]; ?>
                         </option>
                     <?php endfor; ?>
                 </select>
@@ -241,7 +255,7 @@ for ($i = 1; $i <= 12; $i++) {
     <!-- ปฏิทินสถิติ (แสดงเมื่อเลือกเดือนเฉพาะ) -->
     <?php if ($month): ?>
     <div class="psu-calendar-section">
-        <h3>ปฏิทินการจอง - <?php echo date('F Y', mktime(0, 0, 0, $month, 1, $year)); ?></h3>
+        <h3>ปฏิทินการจอง - <?php echo $thai_months[$month] . ' ' . ($year + 543); ?></h3>
         <div class="psu-calendar">
             <?php
             $days_in_month = cal_days_in_month(CAL_GREGORIAN, $month, $year);
@@ -332,12 +346,10 @@ for ($i = 1; $i <= 12; $i++) {
     <!-- ส่งออกรายงาน -->
     <div class="psu-export-section">
         <h3>ส่งออกรายงาน</h3>
-        <p>ส่งออกข้อมูลสถิติและรายงานในรูปแบบต่างๆ</p>
+        <p>ส่งออกข้อมูลสถิติในรูปแบบ CSV เพื่อนำไปใช้งานต่อใน Excel หรือโปรแกรมอื่นๆ</p>
         
         <div class="psu-export-buttons">
-            <button class="button button-primary" onclick="exportReport('excel')">ส่งออก Excel</button>
-            <button class="button" onclick="exportReport('pdf')">ส่งออก PDF</button>
-            <button class="button" onclick="exportReport('csv')">ส่งออก CSV</button>
+            <button class="button button-primary" onclick="exportStatisticsCSV()">📊 ส่งออก CSV</button>
         </div>
     </div>
 </div>
@@ -406,11 +418,38 @@ new Chart(revenueCtx, {
     }
 });
 
-function exportReport(format) {
-    const params = new URLSearchParams(window.location.search);
-    params.set('export', format);
-    
-    // TODO: Implement export functionality
-    alert('ฟีเจอร์ส่งออกรายงาน ' + format.toUpperCase() + ' จะพัฒนาในเวอร์ชั่นถัดไป');
+function exportStatisticsCSV() {
+    // รับค่าฟิลเตอร์ปัจจุบัน
+    const urlParams = new URLSearchParams(window.location.search);
+    const year = urlParams.get('year') || '';
+    const month = urlParams.get('month') || '';
+    const serviceId = urlParams.get('service_id') || '';
+
+    // สร้าง form สำหรับส่งออก CSV
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '<?php echo admin_url('admin-ajax.php'); ?>';
+    form.style.display = 'none';
+
+    // เพิ่มฟิลด์ต่างๆ
+    const fields = {
+        'action': 'psu_export_statistics_csv',
+        'nonce': '<?php echo wp_create_nonce('psu_admin_nonce'); ?>',
+        'year': year,
+        'month': month,
+        'service_id': serviceId
+    };
+
+    Object.keys(fields).forEach(key => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = fields[key];
+        form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
 }
 </script>

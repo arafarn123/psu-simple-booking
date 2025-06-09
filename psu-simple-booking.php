@@ -67,6 +67,7 @@ class PSU_Simple_Booking {
         add_action('wp_ajax_nopriv_psu_get_calendar_bookings', array($this, 'ajax_get_calendar_bookings'));
         add_action('wp_ajax_psu_get_admin_calendar_bookings', array($this, 'ajax_get_admin_calendar_bookings'));
         add_action('wp_ajax_psu_export_bookings_csv', array($this, 'ajax_export_bookings_csv'));
+        add_action('wp_ajax_psu_export_statistics_csv', array($this, 'ajax_export_statistics_csv'));
         add_action('wp_ajax_psu_check_available_timeslots', array($this, 'ajax_check_available_timeslots'));
         
         // Email hooks
@@ -1617,6 +1618,185 @@ class PSU_Simple_Booking {
                 date('d/m/Y H:i', strtotime($booking->created_at))
             );
             fputcsv($output, $row);
+        }
+
+        fclose($output);
+        exit;
+    }
+
+    /**
+     * AJAX: ส่งออกสถิติเป็น CSV
+     */
+    public function ajax_export_statistics_csv() {
+        if (!wp_verify_nonce($_POST['nonce'], 'psu_admin_nonce') || !current_user_can('manage_options')) {
+            wp_die('การตรวจสอบความปลอดภัยล้มเหลว');
+        }
+
+        // รับพารามิเตอร์การกรอง
+        $year = isset($_POST['year']) ? intval($_POST['year']) : date('Y');
+        $month = isset($_POST['month']) ? intval($_POST['month']) : '';
+        $service_id = isset($_POST['service_id']) ? intval($_POST['service_id']) : '';
+
+        global $wpdb;
+
+        // สร้างเงื่อนไขสำหรับการกรอง
+        $where_conditions = array();
+        $where_params = array();
+
+        $where_conditions[] = "YEAR(b.booking_date) = %d";
+        $where_params[] = $year;
+
+        if ($month) {
+            $where_conditions[] = "MONTH(b.booking_date) = %d";
+            $where_params[] = $month;
+        }
+
+        if ($service_id) {
+            $where_conditions[] = "b.service_id = %d";
+            $where_params[] = $service_id;
+        }
+
+        $where_clause = implode(' AND ', $where_conditions);
+
+        // ดึงข้อมูลสถิติตามบริการ
+        $service_stats = $wpdb->get_results($wpdb->prepare(
+            "SELECT 
+                s.name as service_name,
+                s.category,
+                COUNT(b.id) as total_bookings,
+                SUM(CASE WHEN b.status = 'approved' THEN 1 ELSE 0 END) as approved_bookings,
+                SUM(CASE WHEN b.status = 'pending' THEN 1 ELSE 0 END) as pending_bookings,
+                SUM(CASE WHEN b.status = 'rejected' THEN 1 ELSE 0 END) as rejected_bookings,
+                SUM(CASE WHEN b.status = 'approved' THEN b.total_price ELSE 0 END) as total_revenue,
+                AVG(CASE WHEN b.status = 'approved' THEN b.total_price ELSE NULL END) as avg_price
+            FROM {$wpdb->prefix}psu_services s
+            LEFT JOIN {$wpdb->prefix}psu_bookings b ON s.id = b.service_id AND $where_clause
+            WHERE s.status = 1
+            GROUP BY s.id, s.name, s.category
+            ORDER BY total_bookings DESC",
+            $where_params
+        ));
+
+        // ดึงข้อมูลสถิติรายเดือน
+        $monthly_stats = $wpdb->get_results($wpdb->prepare(
+            "SELECT 
+                YEAR(booking_date) as year,
+                MONTH(booking_date) as month,
+                MONTHNAME(booking_date) as month_name,
+                COUNT(*) as booking_count,
+                SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved_count,
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count,
+                SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected_count,
+                SUM(CASE WHEN status = 'approved' THEN total_price ELSE 0 END) as revenue
+            FROM {$wpdb->prefix}psu_bookings 
+            WHERE YEAR(booking_date) = %d" . ($month ? " AND MONTH(booking_date) = %d" : "") . "
+            GROUP BY YEAR(booking_date), MONTH(booking_date), MONTHNAME(booking_date)
+            ORDER BY YEAR(booking_date), MONTH(booking_date)",
+            $month ? array($year, $month) : array($year)
+        ));
+
+        // สร้างชื่อไฟล์
+        $filename_parts = array('statistics', $year);
+        if ($month) {
+            $filename_parts[] = sprintf('%02d', $month);
+        }
+        if ($service_id) {
+            $service_name = $wpdb->get_var($wpdb->prepare(
+                "SELECT name FROM {$wpdb->prefix}psu_services WHERE id = %d", 
+                $service_id
+            ));
+            if ($service_name) {
+                $filename_parts[] = sanitize_file_name($service_name);
+            }
+        }
+        $filename = implode('_', $filename_parts) . '_' . date('Y-m-d_H-i-s') . '.csv';
+
+        // ส่งออกเป็น CSV
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        // เพิ่ม BOM สำหรับ UTF-8 เพื่อให้ Excel แสดงผลภาษาไทยได้ถูกต้อง
+        echo "\xEF\xBB\xBF";
+
+        $output = fopen('php://output', 'w');
+
+        // เดือนภาษาไทย
+        $thai_months = array(
+            1 => 'มกราคม', 2 => 'กุมภาพันธ์', 3 => 'มีนาคม', 4 => 'เมษายน',
+            5 => 'พฤษภาคม', 6 => 'มิถุนายน', 7 => 'กรกฎาคม', 8 => 'สิงหาคม',
+            9 => 'กันยายน', 10 => 'ตุลาคม', 11 => 'พฤศจิกายน', 12 => 'ธันวาคม'
+        );
+
+        // ส่วนที่ 1: ข้อมูลสรุป
+        fputcsv($output, array('=== รายงานสถิติการจอง ==='));
+        fputcsv($output, array('ปี:', $year + 543));
+        if ($month) {
+            fputcsv($output, array('เดือน:', $thai_months[$month]));
+        }
+        fputcsv($output, array('วันที่ส่งออก:', date('d/m/Y H:i:s')));
+        fputcsv($output, array(''));
+
+        // ส่วนที่ 2: สถิติตามบริการ
+        fputcsv($output, array('=== สถิติตามบริการ ==='));
+        $service_headers = array(
+            'ชื่อบริการ',
+            'หมวดหมู่',
+            'จำนวนการจองทั้งหมด',
+            'อนุมัติแล้ว',
+            'รออนุมัติ',
+            'ถูกปฏิเสธ',
+            'รายได้รวม (บาท)',
+            'ราคาเฉลี่ย (บาท)',
+            'อัตราการอนุมัติ (%)'
+        );
+        fputcsv($output, $service_headers);
+
+        foreach ($service_stats as $stat) {
+            $approval_rate = $stat->total_bookings > 0 ? 
+                ($stat->approved_bookings / $stat->total_bookings) * 100 : 0;
+
+            $service_row = array(
+                $stat->service_name,
+                $stat->category ?: '-',
+                $stat->total_bookings,
+                $stat->approved_bookings,
+                $stat->pending_bookings,
+                $stat->rejected_bookings,
+                number_format($stat->total_revenue, 2),
+                number_format($stat->avg_price ?: 0, 2),
+                number_format($approval_rate, 1)
+            );
+            fputcsv($output, $service_row);
+        }
+
+        fputcsv($output, array(''));
+
+        // ส่วนที่ 3: สถิติรายเดือน
+        fputcsv($output, array('=== สถิติรายเดือน ==='));
+        $monthly_headers = array(
+            'ปี',
+            'เดือน',
+            'จำนวนการจองทั้งหมด',
+            'อนุมัติแล้ว',
+            'รออนุมัติ',
+            'ถูกปฏิเสธ',
+            'รายได้ (บาท)'
+        );
+        fputcsv($output, $monthly_headers);
+
+        foreach ($monthly_stats as $stat) {
+            $monthly_row = array(
+                $stat->year + 543,
+                $thai_months[$stat->month],
+                $stat->booking_count,
+                $stat->approved_count,
+                $stat->pending_count,
+                $stat->rejected_count,
+                number_format($stat->revenue, 2)
+            );
+            fputcsv($output, $monthly_row);
         }
 
         fclose($output);

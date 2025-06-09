@@ -358,38 +358,9 @@ if ($edit_service) {
             <div class="psu-list-header">
                 <h2>รายการบริการทั้งหมด</h2>
                 <div>
-                    <button class="button" onclick="testFormSubmission()">🧪 ทดสอบ Form</button>
                     <button class="button button-primary" onclick="toggleServiceForm()">เพิ่มบริการใหม่</button>
                 </div>
             </div>
-            
-            <script>
-            function testFormSubmission() {
-                console.log('🧪 Testing form submission...');
-                const form = document.querySelector('.psu-service-form');
-                if (form) {
-                    // แสดงฟอร์มก่อน
-                    document.getElementById('service-form').style.display = 'block';
-                    document.getElementById('services-list').style.display = 'none';
-                    
-                    // กรอกข้อมูลทดสอบ
-                    setTimeout(() => {
-                        form.querySelector('input[name="name"]').value = 'ทดสอบบริการ ' + Date.now();
-                        form.querySelector('input[name="price"]').value = '100';
-                        
-                        // เลือก checkbox
-                        form.querySelector('input[name="timeslot_type[]"][value="hourly"]').checked = true;
-                        form.querySelector('input[name="working_days[]"][value="1"]').checked = true;
-                        
-                        console.log('✅ Test data filled');
-                        alert('✅ กรอกข้อมูลทดสอบแล้ว กรุณาคลิก "เพิ่มบริการ" เพื่อ submit');
-                    }, 500);
-                } else {
-                    console.log('❌ Form not found');
-                    alert('ไม่พบฟอร์ม');
-                }
-            }
-            </script>
             
             <?php if (empty($services)): ?>
                 <div class="psu-empty-state">
